@@ -1,3 +1,3 @@
 # MoDi: Unconditional Motion Synthesis from Diverse Data
 
-![alt text](code_coming_soon.png)
+![alt text](coming_soon.png)
