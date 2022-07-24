@@ -32,7 +32,7 @@ from utils.distributed import (
     get_world_size,
 )
 try:
-    from clear import Task
+    from clearml import Task
 except ImportError:
     Task = None
 

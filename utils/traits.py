@@ -264,7 +264,6 @@ class SkeletonAwareConv3DTraits(SkeletonAwareTraits):
         return (self.smaller_n_joints - 1,) + super().fixed_dim_pad(kernel_size)
 
     def weight_internal(self, in_channel, out_channel, kernel_size):
-        # todo: change weight initialization
         return torch.randn(out_channel, in_channel, self.smaller_n_joints, self.larger_n_joints, kernel_size)
 
     def mask_affectors(self, mask, out_channel, joint_idx, affectors_this_joint):

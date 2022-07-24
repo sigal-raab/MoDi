@@ -145,7 +145,6 @@ def motion2fig(data, H=512, W=512, n_sampled_motions=5, n_sampled_frames=5, enti
 
         assert not isinstance(data, list) and not isinstance(data[0], dict)
 
-        # todo: not debugged for normalization!!!
         data = data * edge_rot_dict_general['std'].transpose(0, 2, 1, 3) + edge_rot_dict_general['mean'].transpose(0, 2, 1, 3)
 
         sampled_data = data[sampled_motions][:, :, :, sampled_frames]
@@ -164,7 +163,7 @@ def motion2fig(data, H=512, W=512, n_sampled_motions=5, n_sampled_frames=5, enti
             anim, _ = anim_from_edge_rot_dict(one_edge_rot_dict)
             joints[idx] = Animation.positions_global(anim)
 
-        anim_joints_1_to_open_pose = [7, 6, 15, 16, 17, 10, 11, 12, 0, 23, 24, 25, 19, 20, 21] # todo: change to non hard coded
+        anim_joints_1_to_open_pose = [7, 6, 15, 16, 17, 10, 11, 12, 0, 23, 24, 25, 19, 20, 21]
         data = joints[:, :, anim_joints_1_to_open_pose, :]
         data = data.transpose(0, 2, 3, 1)  # samples x frames x joints x features ==> samples x joints x features x frames
 
@@ -218,7 +217,7 @@ def motion2bvh_rot(motion_data, bvh_file_path, type, edge_rot_dict_general=None)
 
     # from this point input is a list of edge_rot_dicts
     for i, (edge_rot_dict, frame_mult) in enumerate(zip(edge_rot_dicts, frame_mults)):
-        anim, names = anim_from_edge_rot_dict(edge_rot_dict, root_name='Hips') # todo: fix the hard coding
+        anim, names = anim_from_edge_rot_dict(edge_rot_dict, root_name='Hips')
         if is_sub_motion:
             suffix = '_{}x{}'.format(edge_rot_dict['rot_edge_no_root'].shape[1], int(edge_rot_dict['rot_edge_no_root'].shape[0]/frame_mult))
         elif type == 'edit':

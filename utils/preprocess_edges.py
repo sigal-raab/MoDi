@@ -194,9 +194,9 @@ def compute_mean_bone_length(animation_names, char_dir):
         anim, _, _ = BVH.load(anim_path)
 
         global_location = positions_global(anim)[:, :]
-        parents_hack = copy.deepcopy(anim.parents) # this hack is good for Jasper topology only
-        parents_hack[3] = 0
-        anim_offsets = (global_location[:, 1:] - global_location[:, parents_hack[1:]])
+        parents = copy.deepcopy(anim.parents)
+        parents[3] = 0
+        anim_offsets = (global_location[:, 1:] - global_location[:, parents[1:]])
         anim_offsets = np.concatenate([global_location[:, :1], anim_offsets],
                                       axis=1)  # for root joint (index 0), put the offset from the global zero
         if one_char_offsets is None:

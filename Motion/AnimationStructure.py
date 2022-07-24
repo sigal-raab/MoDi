@@ -130,7 +130,7 @@ def children_list(parents):
     """
     
     def joint_children(i):
-        return [j for j, p in enumerate(parents) if not isinstance(p, tuple) and p == i]  # todo: 'isinstance' is a hack. change later
+        return [j for j, p in enumerate(parents) if not isinstance(p, tuple) and p == i]
         
     return list(map(lambda j: np.array(joint_children(j)), joints(parents)))
      

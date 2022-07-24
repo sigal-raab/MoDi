@@ -76,7 +76,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     anim_dicts, frame_mults, is_sub_motion = edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dict_general = edge_rot_dict_general)
 
     for j, (anim_dict, frame_mult) in enumerate(zip(anim_dicts, frame_mults)):
-        anim, names = anim_from_edge_rot_dict(anim_dict, root_name='Hips')  # todo: fix the hard coding
+        anim, names = anim_from_edge_rot_dict(anim_dict, root_name='Hips')
         # compute global positions using anim
         positions = Animation.positions_global(anim)
 

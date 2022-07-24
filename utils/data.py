@@ -12,7 +12,7 @@ import torch # used for foot contact
 from utils.foot import get_foot_contact
 
 
-foot_names = ['LeftFoot', 'RightFoot']  # todo: convert to generic code
+foot_names = ['LeftFoot', 'RightFoot']
 
 class openpose_joints(object):
     def __init__(self):
@@ -66,8 +66,7 @@ def entity2index(obj, ordered_entities):
     return res
 
 
-class Joint(): # todo: move to a more appropriate file
-    # todo: deduce automatically from input structure
+class Joint():
     n_channels = 3
 
     @staticmethod
@@ -84,7 +83,6 @@ class Joint(): # todo: move to a more appropriate file
                            {0:[0], 1:[3]},
                            {0:[0], 1:[2], 2:[4], 3:[5], 4:[7], 5:[9]},
                            {0:[1], 1:[3], 2:[4], 3:[6], 4:[7], 5:[8], 6:[10], 7:[11], 8:[13], 9:[14]}]
-    # todo: deduce automatically from skeletal_pooling_dist_1
     oj = openpose_joints()
     parents_list = [[-1],
                [-1,0],
@@ -94,7 +92,7 @@ class Joint(): # todo: move to a more appropriate file
     parents_list = list(map(np.array, parents_list))  # convert list items to np
 
 
-class Edge():  # todo: instead of edge, relate motion to end joint (unlike start joint in bvh). then the toppology structure will be same as for Joint
+class Edge():
     n_channels = 4
 
     @staticmethod
@@ -169,9 +167,7 @@ class Edge():  # todo: instead of edge, relate motion to end joint (unlike start
     assert all([list(parents.keys()) == edges for (parents, edges) in zip(parents_list_edges, edges_list)])  # same order as edges_list
     assert all([list(parents_list.values())[0]==-1 for parents_list in parents_list_edges])  # 1st item is root
 
-    # todo: this is a temporary solution until we have a topology class
     feet_list_edges = [[], [(0, 1)], [(3, 5), (3, 4)], [(8, 9), (6, 7)], [(13, 14), (10, 11)]] # should be ordered [LeftFoot,RightFoot]
-    # n_feet = len(feet_list_edges[-1])
 
     n_hierarchical_stages = len(parents_list_edges)
     assert len(edges_list) == n_hierarchical_stages and len(parents_list_edges) == n_hierarchical_stages and \
@@ -289,7 +285,7 @@ def calc_bone_lengths(motion_data, parents=None, names=None):
     if motion_data.ndim == 3: # no batch dim
         motion_data = motion_data[np.newaxis]
 
-    # hack to support 16 joints skeleton
+    # support 16 joints skeleton
     if motion_data.shape[1] == 16:
         motion_data = motion_data[:,:15]
 
@@ -636,7 +632,7 @@ def edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dic
             parents = Edge.parents_list[hierarchy_level]
             nearest_edge_idx_w_root_edge = np.array(
                 (list(Edge.skeletal_pooling_dist_0[hierarchy_level].values()))).flatten()
-            assert parents[0] == -1 and Edge.parents_list[hierarchy_level+1][0] == -1  # hack to make next line count on root location at index 0
+            assert parents[0] == -1 and Edge.parents_list[hierarchy_level+1][0] == -1  # make next line count on root location at index 0
             nearest_edge_idx = nearest_edge_idx_w_root_edge[1:] - 1   # root is first, hence we look from index 1 and reduce one because root is first on uppler level too.
             if feet:
                 # remove foot contact label
@@ -754,7 +750,7 @@ def motion_from_raw(args, motion_data_raw):
         edge_rot_dict_general['mean'] = mean_joints.transpose(0, 2, 1, 3)
         edge_rot_dict_general['std'] = std_joints.transpose(0, 2, 1, 3)
 
-        if args.foot:  # todo: depart np/torch functions
+        if args.foot:
             motion_data_torch = torch.from_numpy(motion_data).transpose(1, 2)
             motion_data_torch = append_foot_contact(motion_data_torch, args.glob_pos, args.axis_up, edge_rot_dict_general)
             motion_data = motion_data_torch.transpose(1, 2).numpy()

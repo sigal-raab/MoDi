@@ -37,8 +37,6 @@ class SkeletonUnpool(nn.Module):
 
         for i, affecting_joints in self.pooling_list.items():
             for j in affecting_joints:
-                # todo: consider learning a weight for each unpooled vertex
-                # assign a fixed weight for each unpooled vertex which is 1/count
                 self.weight[j, i] = 1
 
         # if an output joint is affected by more than one input joint, it takes the average of all contributors

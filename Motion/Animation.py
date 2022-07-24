@@ -90,13 +90,7 @@ class Animation:
 
             try:
                 # since joints are re-indexed, we need to take spacial care on parents indices
-                reind = reindex(self.parents, k[1])
-
-                order_inversed = {num: i for i, num in enumerate(k[1])}
-                order_inversed[-1] = -1
-                reindexed_parents = np.array([order_inversed[self.parents[i]] for i in k[1]])
-                if not  all(reind==reindexed_parents):  # todo: delete prev 3 lines
-                    print('ABORT ABORT ABORT')
+                reindexed_parents = reindex(self.parents, k[1])
             except: # we will reach the 'except' if k[1] is Nones, i.e., if the sub-selection is over frames rather then over joints
                 reindexed_parents = self.parents
 
@@ -687,12 +681,7 @@ def animation_from_offsets(offsets, parents, shape=None):
     offsets = offsets[sorted_order]
 
     # reorder parents
-    p = reindex(parents, sorted_order)
-
-    sorted_order_inversed = {num: i for i, num in enumerate(sorted_order)}
-    sorted_order_inversed[-1] = -1
-    parents = np.array([sorted_order_inversed[parents[i]] for i in sorted_order])
-    assert all(p==parents) # todo: delete prev 3 lines if assert works well
+    parents = reindex(parents, sorted_order)
 
     if shape is None:
         shape=(1, offsets.shape[0])

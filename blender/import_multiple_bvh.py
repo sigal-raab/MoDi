@@ -17,8 +17,8 @@ def location(horiz_loc, vert_loc, entity):
 
 scale_factor = 3
 
-base_path = '/Users/sigalraab/momo/train_outputs/stylegan2_motion_skeleton'               # example: '/home/username/train_outputs'
-cur_path = 'Jasper_all_5K_norm_mixing_0p9_pool_edgerot_globpos_footvelo_tmpMoDi_rmnoise_shaeb57_deep_2.3508de29d4184dcb8eb60451a7dee025/models/079999_files/22_06_29_08_55_sample_10'  # example: 'experiment_name.362db4a171934333bea96e9c10712d95/models/079999_files/22_06_27_16_27_interp')'
+base_path = '<type the path to your models>'               # example: '/home/username/train_outputs'
+cur_path = '<type the rest of the path>'  # example: 'experiment_name.362db4a171934333bea96e9c10712d95/models/079999_files/22_06_16_15_10_sample_10')'
 path = osp.join(base_path, cur_path)
 files = glob.glob(osp.join(path, 'generated_*.bvh'))
 files = [osp.basename(file) for file in files if 'fixed' not in file]  # use only file name without path
@@ -35,7 +35,7 @@ except:
     print('***********************')
     print('args.csv was not found.')
     print('***********************')
-    exit()
+    args = {'type': 'sample'}
 
 if 'entity' in args:
     entity = args['entity']
