@@ -1,6 +1,6 @@
 # MoDi: Unconditional Motion Synthesis from Diverse Data
 
-![alt text](coming_soon.png)
+<!-- ![alt text](coming_soon.png) -->
 
 ![Python](https://img.shields.io/badge/Python->=3.6.10-Blue?logo=python)  ![Pytorch](https://img.shields.io/badge/PyTorch->=1.5.0-Red?logo=pytorch)
 
@@ -25,6 +25,20 @@ This code has been tested under Ubuntu 16.04 and Cuda 10.2. Before starting, ple
 conda env create --name MoDi --file environment.yaml
 conda activate MoDi
 ~~~
+or by 
+~~~bash
+conda create -n MoDi python=3.6.10
+conda activate MoDi
+conda install -y pytorch==1.5.0 torchvision==0.6.0 -c pytorch
+conda install -y -c conda-forge tqdm
+conda install -y -c conda-forge opencv
+conda install -y -c conda-forge matplotlib
+conda install -y -c anaconda pandas
+conda install -y -c conda-forge scipy
+conda install -y -c anaconda scikit-learn
+pip install clearml
+~~~
+
 
 ## Data 
 ### Pretrained Model 
