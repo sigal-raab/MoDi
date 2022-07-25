@@ -64,6 +64,11 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
         return generated_motions
 
     _, _, _, edge_rot_dict_general = motion_from_raw(args, np.load(args.path, allow_pickle=True))
+    generated_motions = convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general)
+    return generated_motions
+
+
+def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general):
     edge_rot_dict_general['std_tensor'] = edge_rot_dict_general['std_tensor'].cpu()
     edge_rot_dict_general['mean_tensor'] = edge_rot_dict_general['mean_tensor'].cpu()
     if args.dataset == 'mixamo':
@@ -168,7 +173,7 @@ def main(args_not_parsed):
         help="path to the model checkpoint",
     )
     parser.add_argument(
-        "--dataset", type=str, default='mixamo', choices=['mixamo', 'hmmanact12'], help='on which dataset to evaluate')
+        "--dataset", type=str, default='mixamo', choices=['mixamo', 'humanact12'], help='on which dataset to evaluate')
     parser.add_argument(
         "--rot_only", action="store_true",
         help="refrain from predicting global root position when predicting rotations"
