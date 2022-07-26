@@ -276,7 +276,7 @@ def edit(boundary_path, extreme_idx, model, seeds, score_path, stages, entity):
             generate_params = ['--sample_seed', edit_seeds, '--boundary_path', osp.join(boundary_path, 'boundary.npy'),
                                '--out_path', osp.join(boundary_path, range_file_name), '--edit_radius',
                                str(radius),
-                               '--ckpt', model, '--truncation', '1', '--type', 'edit']
+                               '--ckpt', model, '--truncation', '1', '--type', 'edit', '--path', args.path]
             _ = generate.main(generate_params)
 
             range_file_name = f'neg{radius}_{radius}'.replace('.', 'p')
@@ -352,7 +352,7 @@ def generate_random_motions(model, stages):
     if stages['generate_motions'] is None:
         n_motions = 10000
         print(print_str + f'Generating {n_motions} random motions.\n***')
-        generate_params = ['--motions', str(n_motions), '--ckpt', model, '--truncation', '1', '--type', 'sample']
+        generate_params = ['--motions', str(n_motions), '--ckpt', model, '--truncation', '1', '--type', 'sample', '--path', args.path]
         data_path = generate.main(generate_params)
         print(f'   Generated motions saved to {data_path}')
     else:
@@ -501,6 +501,7 @@ if __name__ == "__main__":
     parser.add_argument("--attr", type=str, default=['r_hand_lift_up'], nargs='+',
                         choices=['r_hand_lift_up', 'r_elbow_angle', 'r_wrist_accel', 'r_wrist_vert', 'verticality'],
                         help="list of attributes to be edited")
+    parser.add_argument('--path', type=str, help='Path to ground truth file that was used during train. Not needed unless one wants to override the local path saved by the network')
     args = parser.parse_args()
 
     stages = {'generate_motions': args.data_path, 'calc_score': args.score_path, 'train_boundary': None, 'edit': None}

@@ -49,7 +49,6 @@ Download the [pretrained model](https://drive.google.com/file/d/1edzdGtkjNSxnSl2
 
 Create a folder by the name `data` and place the downloaded model in it.
 
-Unzip the downloaded model using `gunzip`.
 
 ### Data for a Quick Start
 
@@ -101,7 +100,7 @@ and the second will induce an interpolation between the latent value related to 
 ## Semantic Editing in Latent Space 
 Following is an example for editing the `gradual right arm lifting` and `right arm elbow angle` attributes.
 ~~~bash
-python latent_space_edit.py --model_path ./data/ckpt.pt --attr r_hand_lift_up r_elbow_angle
+python latent_space_edit.py --model_path ./data/ckpt.pt --attr r_hand_lift_up r_elbow_angle --path ./data/edge_rot_data.npy 
 ~~~
 Note that editing takes a long time, but once it is done, the data that was already produced can be reused, 
 which significantly shortens the running time. See inline documentation for more details.
@@ -109,7 +108,7 @@ which significantly shortens the running time. See inline documentation for more
 ## Inversion
 
 ~~~bash
-python inverse_optim.py --ckpt ./data/ckpt.pt --out_path <results path> --target_idx 32
+python inverse_optim.py --ckpt ./data/ckpt.pt --out_path <results path> --target_idx 32 --path ./data/edge_rot_data.npy
 ~~~
 
 ## Quntitative evaluation 
