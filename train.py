@@ -118,7 +118,7 @@ def g_path_regularize(fake_img, latents, mean_path_length, decay=0.01):
 def g_foot_contact_loss(motion, glob_pos, axis_up, edge_rot_dict_general):
     # motion is of shape samples x features x joints x frames
     label_idx = motion.shape[2] - len(foot_names)
-    skeletal_foot_contact = get_foot_contact(motion[:, :, :label_idx], glob_pos, axis_up, edge_rot_dict_general)
+    skeletal_foot_contact = get_foot_contact(motion[:, :, :label_idx], glob_pos, axis_up, edge_rot_dict_general, foot_names)
     predicted_foot_contact = motion[:, 0, label_idx:]
     return F.mse_loss(skeletal_foot_contact, predicted_foot_contact)
     # return F.binary_cross_entropy_with_logits((predicted_foot_contact-.5)*12, skeletal_foot_contact)
