@@ -189,7 +189,10 @@ def motion2fig(data, H=512, W=512, n_sampled_motions=5, n_sampled_frames=5, enti
             skeleton = data[motion_idx,:,:,frame_idx]
             img = pose2im_all(skeleton, max_h, max_w)
             axes[motion_idx, frame_idx].axis('off')
-            axes[motion_idx, frame_idx].imshow(img[::-1,:]) # image y axis is inverted
+            try:
+                axes[motion_idx, frame_idx].imshow(img[::-1,:]) # image y axis is inverted
+            except:
+                pass # in some configurations the image cannot be shown
     return fig
 
 
