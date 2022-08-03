@@ -477,4 +477,3 @@ def get_sorted_order(parents):
     sorted_order, _ = get_sorted_order_internal(sorted_order, 0, root_idx, children)
     return sorted_order
 
-    

@@ -246,7 +246,10 @@ def save(filename, anim, names=None, frametime=1.0/24.0, order='xyz', positions=
 
     # anim, names = anim.sort(names)
     children = AnimationStructure.children_list(anim.parents)
-    end_sites = [i for i,c in enumerate(children) if len(c)==0]
+    if anim.shape[1] > 1: # end sites exist only if there is more than a root vertex
+        end_sites = [i for i,c in enumerate(children) if len(c)==0]
+    else:
+        end_sites = []
 
     with open(filename, 'w') as f:
 

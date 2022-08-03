@@ -399,6 +399,9 @@ def expand_topology_edges(anim, req_joint_idx=None, names=None, offset_len_mean=
     super_parents = np.where(n_children_req > 1)[0]
     n_super_children = n_children_req[super_parents].sum().astype(int) # total num of multiple children
 
+    if n_super_children == 0:
+        return anim, req_joint_idx, names, offset_len_mean  # can happen in lower hierarchy levels
+
     # prepare space for expanded joints, at the end of each array
     anim.offsets = np.append(anim.offsets, np.zeros(shape=(n_super_children,3)), axis=0)
     anim.positions = np.append(anim.positions, np.zeros(shape=(n_frames, n_super_children,3)), axis=1)
@@ -574,7 +577,7 @@ def anim_from_edge_rot_dict(edge_rot_dict, root_name='Hips'):
     positions[:, root_idx] = edge_rot_dict['pos_root']
     parents = edge_rot_dict['parents_with_root']
     orients = Quaternions.id(n_joints)
-    rotations = np.insert(edge_rot_dict['rot_edge_no_root'], root_idx, edge_rot_dict['rot_root'], axis=1)
+    rotations = Quaternions(np.insert(edge_rot_dict['rot_edge_no_root'], root_idx, edge_rot_dict['rot_root'], axis=1))
 
     if rotations.shape[-1] == 6:    # repr6d
         from Motion.transforms import repr6d2quat
@@ -627,6 +630,7 @@ def edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dic
     parents = Edge.parents_list[-1] #  upper level parents. to be used in case there is no inner iteration on hierarcy levels
     assert all(edge_rot_dict_general['parents_with_root'] == Edge.parents_list[-1][:len(edge_rot_dict_general['parents_with_root'])]) # use 'len' because root pose may be added to Edge.parents_list[-1]
     n_frames_max = motion_data[-1].shape[-1]
+    n_feet = len(Edge.feet_list_edges[-1])  # use this in case there is no pyramid
 
     # handle all levels
     for hierarchy_level in range(len(motion_data) - 1, -1, -1):  # iterate in reverse order so each level can use its upper one
@@ -637,6 +641,7 @@ def edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dic
         frame_mults[hierarchy_level] = int(n_frames_max / n_frames)
         if type in ['sample', 'interp-mix-pyramid'] and n_edges != Edge.n_edges[-1]:
                 # and hierarchy_level != len(motion_data) - 1:  # uppermost hierarchy level
+            n_feet = len(Edge.feet_list_edges[hierarchy_level]) # override the n_feet from outside the loop
             parents = Edge.parents_list[hierarchy_level]
             nearest_edge_idx_w_root_edge = np.array(
                 (list(Edge.skeletal_pooling_dist_0[hierarchy_level].values()))).flatten()
