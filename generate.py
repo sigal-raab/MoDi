@@ -11,7 +11,7 @@ import numpy as np
 from utils.visualization import motion2fig, motion2bvh
 import matplotlib.pyplot as plt
 import sys as _sys
-from utils.data import motion_from_raw
+from utils.data import motion_from_raw, to_cpu
 from utils.pre_run import setup_env, get_ckpt_args
 from utils.data import Joint, Edge # to be used in 'eval'
 
@@ -87,7 +87,8 @@ def sample(args, g_ema, device, mean_latent):
         if (i+1) % 1000 == 0:
             print(f'Done sampling {i+1} motions.')
 
-        generated_motion.loc[seed] = [motion, W]
+        # to_cpu is used becuase advanced python versions cannot assign a cuda object to a dataframe
+        generated_motion.loc[seed] = to_cpu([motion, W])
 
     if args.no_idle:
         filter = (stds > no_idle_thresh)

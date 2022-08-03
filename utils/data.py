@@ -532,6 +532,15 @@ def to_list_4D(motion_data):
     return motion_data
 
 
+def to_cpu(motion_data):
+    if not isinstance(motion_data, list):
+        motion_data = motion_data.cpu()
+    else:
+        for i, motion in enumerate(motion_data):
+            motion_data[i] = to_cpu(motion)
+    return motion_data
+
+
 def un_normalize(data, mean, std):
     if isinstance(data, list):
         for i in range(len(data)):
@@ -611,7 +620,6 @@ def edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dic
     frame_mults = [1] * len(motion_data)
     glob_pos = Edge.is_global_position_enabled()
     feet = Edge.is_foot_contact_enabled()
-    n_feet = len(Edge.feet_list_edges[-1])
 
     # store upper level values
     offsets = edge_rot_dict_general['offsets_no_root']
@@ -634,7 +642,7 @@ def edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dic
                 (list(Edge.skeletal_pooling_dist_0[hierarchy_level].values()))).flatten()
             assert parents[0] == -1 and Edge.parents_list[hierarchy_level+1][0] == -1  # make next line count on root location at index 0
             nearest_edge_idx = nearest_edge_idx_w_root_edge[1:] - 1   # root is first, hence we look from index 1 and reduce one because root is first on uppler level too.
-            if feet:
+            if feet and n_feet > 0: # n_feet is 0 even when feet are used, for the lowermost level
                 # remove foot contact label
                 nearest_edge_idx = nearest_edge_idx[:-n_feet]
                 nearest_edge_idx_w_root_edge = nearest_edge_idx_w_root_edge[:-n_feet]
@@ -644,7 +652,7 @@ def edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dic
                 nearest_edge_idx_w_root_edge = nearest_edge_idx_w_root_edge[:-1]
             offsets = offsets[nearest_edge_idx]
             names = names[nearest_edge_idx_w_root_edge]
-        if feet:
+        if feet and n_feet > 0:  # n_feet is 0 even when feet are used, for the lowermost level
             # last edges are feet contact labels
             rot_edge_no_feet = motion_tr[:, :-n_feet, :]  # drop root rotation (1st idx). it will be used in 'rot_root'
             parents_no_feet = parents[:-n_feet]
