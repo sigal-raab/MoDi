@@ -88,7 +88,8 @@ def sample(args, g_ema, device, mean_latent):
             print(f'Done sampling {i+1} motions.')
 
         # to_cpu is used becuase advanced python versions cannot assign a cuda object to a dataframe
-        generated_motion.loc[seed] = to_cpu([motion, W])
+        generated_motion.loc[seed,'motion'] = to_cpu(motion)
+        generated_motion.loc[seed, 'W'] = to_cpu(W)
 
     if args.no_idle:
         filter = (stds > no_idle_thresh)
