@@ -210,7 +210,7 @@ def main(args_not_parsed):
 
     #region generator
     g_ema = Generator(
-        args.latent, args.n_mlp, traits_class = traits_class, entity=entity
+        args.latent, args.n_mlp, traits_class = traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
     ).to(device)
 
     g_ema.load_state_dict(checkpoint["g_ema"])
@@ -284,13 +284,19 @@ def main(args_not_parsed):
     fig_hist_generated = plt.figure()
     plt.bar(*np.unique(yhat.cpu(), return_counts=True))
     plt.title(f'generated {args.ckpt}')
-    plt.show()
+    try:
+        plt.show()
+    except:
+        pass  # in some configurations the image cannot be shown
 
     yhat = dataset_predictions.max(dim=1).indices
     fig_hist_dataset = plt.figure()
     plt.bar(*np.unique(yhat.cpu(), return_counts=True))
     plt.title('dataset')
-    plt.show()
+    try:
+        plt.show()
+    except:
+        pass  # in some configurations the image cannot be shown
 
     save_results(args, fid, kid, (generated_diversity, dataset_diversity),
                  (precision, recall), fig_hist_generated, fig_hist_dataset)
