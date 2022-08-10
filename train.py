@@ -398,12 +398,12 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
     print(f'\nAverage time for {report_every} iterations: {mean_times} seconds.')
 
 
-def calc_evaluation_metrics(g_ema, discriminator):
+def calc_evaluation_metrics(g_ema):
     # create stgcn model
     stgcn_model = evaluate.initialize_model(device, modelpath= args.action_recog_model, dataset = args.dataset)
 
     # generate motions
-    generated_motions = evaluate.generate(args, g_ema, discriminator, device, mean_joints, std_joints, num_motions=1000, entity=entity)
+    generated_motions = evaluate.generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
     generated_motions = generated_motions[:, :15]
     generated_motions -= generated_motions[:, 8:9, :, :]
     iterator_generated = data.DataLoader(generated_motions, batch_size=500, shuffle=False, num_workers=8)

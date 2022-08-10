@@ -301,8 +301,8 @@ class SkeletonAwareConv3DTraits(SkeletonAwareTraits):
         weight = torch.flip(weight, (2,))
         return weight
 
-
 class SkeletonAwarePoolTraits(SkeletonAwareConv3DTraits):
+
     def __init__(self, parents, pooling_list):
         super().__init__(parents, pooling_list)
         self.transposed_conv_func = self.transposed_conv_func2

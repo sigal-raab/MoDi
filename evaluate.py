@@ -37,6 +37,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     args.return_sub_motions = False
     args.truncation = 1
     args.truncation_mean = 4096
+    args.motions = 2000
 
     with torch.no_grad():
         g_ema.eval()
@@ -163,9 +164,6 @@ def main(args_not_parsed):
     parser = argparse.ArgumentParser(description="Generate samples from the generator and compute action recognition model features")
     parser.add_argument('--path', type=str,
                         help='Path to ground truth file that was used during train. Not needed unless one wants to override the local path saved by the network')
-    parser.add_argument(
-        "--motions", type=int, default=2000, help="number of motions to be generated"
-    )
     parser.add_argument(
         "--ckpt",
         type=str,
