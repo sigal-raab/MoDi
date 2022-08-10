@@ -433,8 +433,6 @@ if __name__ == "__main__":
     parser = TrainOptions()
     args = parser.parse_args()
 
-    assert (not (args.skeleton | args.conv3 | args.joints_pool)) | args.skeleton & (args.conv3 ^ args.joints_pool)
-
     if 'Edge' in args.entity:
         args.action_recog_model = None
 
