@@ -413,7 +413,9 @@ def calc_evaluation_metrics(g_ema):
     generated_stats = evaluate.calculate_activation_statistics(generated_features)
 
     # load gt dataset and get features
-    iterator_dataset = data.DataLoader(motion_data, batch_size=64, shuffle=False, num_workers=8)
+    gt_motion_data = motion_data[:, :15]
+    gt_motion_data -= gt_motion_data[:, 8:9, :, :]  # locate root joint of all frames at origin
+    iterator_dataset = data.DataLoader(gt_motion_data, batch_size=64, shuffle=False, num_workers=8)
     dataset_features, dataset_predictions = evaluate.compute_features(stgcn_model, iterator_dataset)
     real_stats = evaluate.calculate_activation_statistics(dataset_features)
     # compute metrics
