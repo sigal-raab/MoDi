@@ -516,7 +516,6 @@ class Generator(nn.Module):
         truncation_latent=None,
         input_is_latent=False,
         return_sub_motions=False,
-        requires_wr=False
     ):
         if not input_is_latent:
             # forward the noise through the style pipeline to obtain W
@@ -575,9 +574,6 @@ class Generator(nn.Module):
                 motion.append(skip)
 
             i += self.n_convs_in_hierarchy
-
-        if requires_wr:
-            latent = (latent, wr)
 
         if not return_sub_motions: # return final motion only
             motion = skip
