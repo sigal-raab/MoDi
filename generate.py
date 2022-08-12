@@ -6,7 +6,7 @@ import re
 import pandas as pd
 
 import torch
-from models.stylegan_models import Generator
+from models.gan import Generator
 import numpy as np
 from utils.visualization import motion2fig, motion2bvh
 import matplotlib.pyplot as plt

@@ -9,7 +9,7 @@ import datetime
 import torch
 
 from torch.utils.data import DataLoader
-from models.stylegan_models import Generator
+from models.gan import Generator
 import numpy as np
 from utils.data import anim_from_edge_rot_dict
 from utils.data import un_normalize

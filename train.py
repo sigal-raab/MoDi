@@ -19,7 +19,7 @@ from utils.data import motion_from_raw
 import matplotlib.pyplot as plt
 import evaluate as evaluate
 
-from models.stylegan_models import Generator, Discriminator
+from models.gan import Generator, Discriminator
 from utils.foot import get_foot_contact, get_foot_velo
 from utils.data import Joint, Edge # to be used in 'eval'
 from utils.pre_run import TrainOptions, setup_env

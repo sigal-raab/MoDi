@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 from models.skeleton import SkeletonPool, SkeletonUnpool
 from utils.data import neighbors_by_distance
-from models.stylegan_models import Upsample
+from models.gan import Upsample
 
 class SkeletonTraits(nn.Module):
     # static variables

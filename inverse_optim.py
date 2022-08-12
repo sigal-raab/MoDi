@@ -6,7 +6,7 @@ from tqdm import tqdm
 import numpy as np
 import torch
 
-from models.stylegan_models import Generator, Discriminator
+from models.gan import Generator, Discriminator
 from utils.visualization import motion2bvh
 from utils.data import Joint, Edge # used by the 'eval' command
 from utils.data import motion_from_raw
