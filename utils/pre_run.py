@@ -279,7 +279,7 @@ class TrainOptions(BaseOptions):
             help="mixamo or humanact12"
         )
         parser.add_argument(
-            "--n_inplace_conv", default=1, type=int,
+            "--n_inplace_conv", default=2, type=int,
             help="Number of self convolutions within each hierarchical layer. StyleGAN original is 1. "
         )
         self.parser = parser
