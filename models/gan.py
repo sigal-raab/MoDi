@@ -443,6 +443,8 @@ class Generator(nn.Module):
         )
         self.to_xyz1 = ToXYZ(self.n_channels[0], style_dim, upsample=False, skeleton_traits=skeleton_traits1, entity=entity)
 
+        if traits_class.is_pool():
+            n_inplace_conv -= 1  # the pooling block already contains one inplace convolution
         self.n_inplace_convs_in_hierarchy = n_inplace_conv
         self.n_convs_in_hierarchy = 1 + n_inplace_conv
         self.n_hierarchy_levels = len(n_joints)
@@ -672,6 +674,8 @@ class Discriminator(nn.Module):
     def __init__(self, blur_kernel=[1, 3, 3, 1], traits_class=None, entity=None, n_inplace_conv=1):
         super().__init__()
 
+        if traits_class.is_pool():
+            n_inplace_conv -= 1  # the pooling block already contains one inplace convolution
         n_joints = traits_class.n_joints(entity)
         self.n_channels = traits_class.n_channels(entity)
         self.n_frames = traits_class.n_frames(entity)

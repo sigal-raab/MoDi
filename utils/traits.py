@@ -133,6 +133,9 @@ class SkeletonTraits(nn.Module):
         assert n_levels <= len(n_channels_max)
         return n_channels_max[-n_levels:]
 
+    @staticmethod
+    def is_pool():
+        return False
 
 class NonSkeletonAwareTraits(SkeletonTraits):
     # def __init__(self, parent=None, pooling_list=None):
@@ -230,7 +233,7 @@ class SkeletonAwareTraits(SkeletonTraits):
         for joint_idx, affectors_this_joint in affectors_all_joint.items():
             mask = self.mask_affectors(mask, out_channel, joint_idx, affectors_this_joint)
         return mask
-    
+
     def mask_affectors(self, mask, out_channel, joint_idx, affectors_this_joint):
         assert out_channel * joint_idx < mask.shape[1] and all(
             [j < mask.shape[3] for j in affectors_this_joint])
@@ -362,3 +365,8 @@ class SkeletonAwarePoolTraits(SkeletonAwareConv3DTraits):
             input = pool(input)
         input = input.unsqueeze(3)
         return input
+
+
+    @staticmethod
+    def is_pool():
+        return True
