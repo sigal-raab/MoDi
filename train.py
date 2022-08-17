@@ -461,7 +461,7 @@ if __name__ == "__main__":
         images_output_folder = osp.join(args.save_path, 'images')
         animations_output_folder = osp.join(args.save_path, 'animations')
     else:
-        output_folder = osp.expanduser('~/tmp')
+        output_folder = args.save_path if args.save_path is not None else osp.expanduser('~/tmp')
         logger = None
         images_output_folder = osp.join(output_folder, 'images')
         animations_output_folder = osp.join(output_folder, 'animations')
