@@ -61,7 +61,7 @@ you may download the naming data from [Google Drive](https://drive.google.com/fi
 The naming data is a text file containing the character name, motion name, and path related info. 
 In the given data, all motions are related to the character Jasper.
 
-<!--In order to use motions for other characters in Mixamo, or for other datasets, please refer to our instructions in the [More Data]() section. <span style="color: red"> TBC </span>>
+<!--In order to use motions for other characters in Mixamo, or for other datasets, please refer to our instructions in the [More Data]() section. <span style="color: red"> TBC </span>-->
  
 The action recognition model used for evaluation is trained using the joint location data. You can download the Mixamo preprocessed joint location data from  
 [Google Drive](https://drive.google.com/file/d/1hV8nxxfC5V-r9tZiTUthIO1g9lFik_Sh/view?usp=sharing).
