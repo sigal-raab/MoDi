@@ -512,6 +512,8 @@ def to_list_4D(motion_data):
 
 
 def to_cpu(motion_data):
+    if motion_data is None:
+        return None
     if not isinstance(motion_data, list):
         motion_data = motion_data.cpu()
     else:

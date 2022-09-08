@@ -315,7 +315,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         loss_dict["path"] = path_loss
         loss_dict["path_length"] = path_lengths.mean()
 
-        if i % 2000 == 0 and args.action_recog_model is not None and 'Edge' not in args.entity:
+        if i >= 2000 and i % 2000 == 0 and args.action_recog_model is not None:
             fid, kid, g_diversity = calc_evaluation_metrics(g_ema)
             loss_dict['evaluation_metrics_fid'] = fid
             loss_dict['evaluation_metrics_kid'] = kid
@@ -413,9 +413,10 @@ def calc_evaluation_metrics(g_ema):
     generated_stats = evaluate.calculate_activation_statistics(generated_features)
 
     # load gt dataset and get features
-    gt_motion_data = motion_data[:, :15]
-    gt_motion_data -= gt_motion_data[:, 8:9, :, :]  # locate root joint of all frames at origin
-    iterator_dataset = data.DataLoader(gt_motion_data, batch_size=64, shuffle=False, num_workers=8)
+    gt_motion_data_eval = np.load(args.act_rec_gt_path, allow_pickle=True)
+    gt_motion_data_eval = gt_motion_data_eval[:, :15]
+    gt_motion_data_eval -= gt_motion_data_eval[:, 8:9, :, :]  # locate root joint of all frames at origin
+    iterator_dataset = data.DataLoader(gt_motion_data_eval, batch_size=64, shuffle=False, num_workers=8)
     dataset_features, dataset_predictions = evaluate.compute_features(stgcn_model, iterator_dataset)
     real_stats = evaluate.calculate_activation_statistics(dataset_features)
     # compute metrics
@@ -434,9 +435,6 @@ if __name__ == "__main__":
 
     parser = TrainOptions()
     args = parser.parse_args()
-
-    if 'Edge' in args.entity:
-        args.action_recog_model = None
 
     traits_class = setup_env(args, get_traits=True)
 

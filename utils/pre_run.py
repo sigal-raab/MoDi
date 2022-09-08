@@ -138,20 +138,56 @@ class OptimOptions(TestOptions):
             help="Use Wplus space or not"
         )
 
+class TrainBaseOptions(BaseOptions):
+    def __init__(self):
+        super(TrainBaseOptions, self).__init__()
+        parser = self.parser
+        parser.add_argument(
+            "--d_reg_every",
+            type=int,
+            default=16,
+            help="interval of the applying r1 regularization",
+        )
+        parser.add_argument("--d_lr", type=float, default=0.002, help="discriminator learning rate")
+        parser.add_argument("--device", type=str, default="cuda")
+        parser.add_argument(
+            "--clearml", action="store_true", help="use trains logging"
+        )
+        parser.add_argument(
+            "--tensorboard", action="store_true", help="use tensorboard for loss recording"
+        )
+        parser.add_argument(
+            "--save_path", type=str, default='checkpoint',
+            help="path for saving model"
+        )
+        parser.add_argument(
+            "--on_cluster_training", action='store_true',
+            help="When training on cluster, use standard print instead of tqdm"
+        )
+        parser.add_argument(
+            "--batch", type=int, default=16, help="batch sizes for each gpus"
+        )
+        parser.add_argument(
+            "--dataset", type=str,
+            default='mixamo',
+            help="mixamo or humanact12"
+        )
+        parser.add_argument(
+            "--iter", type=int, default=80000, help="total training iterations"
+        )
+        parser.add_argument(
+            "--augment_p",
+            type=float,
+            default=0,
+            help="probability of applying augmentation. 0 = use adaptive augmentation",
+        )
 
-class TrainOptions(BaseOptions):
+class TrainOptions(TrainBaseOptions):
     def __init__(self):
         super(TrainOptions, self).__init__()
         parser = self.parser
 
         parser.add_argument("--path", type=str, help="path to dataset")
-        parser.add_argument("--device", type=str, default="cuda")
-        parser.add_argument(
-            "--iter", type=int, default=80000, help="total training iterations"
-        )
-        parser.add_argument(
-            "--batch", type=int, default=16, help="batch sizes for each gpus"
-        )
         parser.add_argument(
             "--r1", type=float, default=10, help="weight of the r1 regularization"
         )
@@ -175,12 +211,6 @@ class TrainOptions(BaseOptions):
             help="weight of the foot contact encouraging regularization"
         )
         parser.add_argument(
-            "--d_reg_every",
-            type=int,
-            default=16,
-            help="interval of the applying r1 regularization",
-        )
-        parser.add_argument(
             "--g_reg_every",
             type=int,
             default=4,
@@ -195,16 +225,12 @@ class TrainOptions(BaseOptions):
             default=None,
             help="path to the checkpoints to resume training",
         )
-        parser.add_argument("--d_lr", type=float, default=0.002, help="discriminator learning rate")
         parser.add_argument("--g_lr", type=float, default=0.002, help="generator learning rate")
         parser.add_argument(
             "--channel_multiplier",
             type=int,
             default=2,
             help="channel multiplier factor for the model. config-f = 2, else = 1",
-        )
-        parser.add_argument(
-            "--clearml", action="store_true", help="use trains logging"
         )
         parser.add_argument(
             "--name", type=str, default="no_name_defined",
@@ -243,21 +269,10 @@ class TrainOptions(BaseOptions):
             "--axis_up", choices=[0, 1, 2], type=int, default=1,
             help="which axis points at the direction of a standing person's head? currently it is z for locations and y for rotations."
         )
-        parser.add_argument(
-            "--save_path", type=str, default='.',
-            help="path for saving model"
-        )
-        parser.add_argument(
-            "--on_cluster_training", action='store_true',
-            help="When training on cluster, use standard print instead of tqdm"
-        )
         parser.add_argument( # currently works for entity=Joint only
             "--action_recog_model", type=str,
             default='evaluation/checkpoint_0300_mixamo_acc_0.74_train_test_split_smaller_arch.tar',
             help="pretrained action recognition model used for feature extraction when computing evaluation metrics FID, etc"
-        )
-        parser.add_argument(
-            "--tensorboard", action="store_true", help="use tensorboard for loss recording"
         )
         parser.add_argument(
             "--v2_contact_loss", action='store_true',
@@ -274,14 +289,11 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--n_mlp', type=int, default=8, help='Number of MLP for mapping z to W')
         parser.add_argument('--n_frames_dataset', type=int, default=64)
         parser.add_argument(
-            "--dataset", type=str,
-            default='mixamo',
-            help="mixamo or humanact12"
-        )
-        parser.add_argument(
             "--n_inplace_conv", default=2, type=int,
             help="Number of self convolutions within each hierarchical layer. StyleGAN original is 1. "
         )
+        parser.add_argument('--act_rec_gt_path', type=str,
+                            help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
         self.parser = parser
 
     def after_parse(self, args):

@@ -90,7 +90,7 @@ def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general
         positions_15joints = positions[:, [7, 6, 15, 16, 17, 10, 11, 12, 0, 23, 24, 25, 19, 20, 21]] # openpose order R then L
         positions_15joints = positions_15joints.transpose(1, 2, 0)
         positions_15joints_oriented = positions_15joints.copy()
-        if args.dataset=='mixamo':
+        if args.dataset == 'mixamo':
             positions_15joints_oriented = positions_15joints_oriented[:, [0, 2, 1]]
             positions_15joints_oriented[:, 1, :] = -1 * positions_15joints_oriented[:, 1, :]
         generated_motions.append(positions_15joints_oriented)
