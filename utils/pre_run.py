@@ -23,6 +23,7 @@ class TrainBaseOptions(BaseOptions):
     def __init__(self):
         super(TrainBaseOptions, self).__init__()
         parser = self.parser
+        parser.add_argument("--path", type=str, help="path to dataset")
         parser.add_argument("--d_reg_every", type=int, default=16, help="interval of the applying r1 regularization")
         parser.add_argument("--d_lr", type=float, default=0.002, help="discriminator learning rate")
         parser.add_argument("--clearml", action="store_true", help="use trains logging")
@@ -33,6 +34,7 @@ class TrainBaseOptions(BaseOptions):
         parser.add_argument("--batch", type=int, default=16, help="batch sizes for each gpus")
         parser.add_argument("--dataset", type=str, default='mixamo', help="mixamo or humanact12")
         parser.add_argument("--iter", type=int, default=80000, help="total training iterations")
+        parser.add_argument("--report_every", type=int, default=2000, help="number of iterations between saving model checkpoints")
         parser.add_argument("--augment_p", type=float, default=0,
                             help="probability of applying augmentation. 0 = use adaptive augmentation")
         parser.add_argument("--action_recog_model", type=str,
@@ -44,7 +46,6 @@ class TrainOptions(TrainBaseOptions):
     def __init__(self):
         super(TrainOptions, self).__init__()
         parser = self.parser
-        parser.add_argument("--path", type=str, help="path to dataset")
         parser.add_argument("--r1", type=float, default=10, help="weight of the r1 regularization")
         parser.add_argument("--path_regularize",type=float,default=2,
                             help="weight of the path length regularization",)

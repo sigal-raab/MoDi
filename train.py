@@ -3,6 +3,7 @@ import os.path as osp
 import time
 import random
 import math
+import sys
 
 from torch import autograd, optim
 from torch.utils import data
@@ -177,8 +178,8 @@ def set_grad_none(model, targets):
             p.grad = None
 
 
-def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger,
-          mean_joints=None, std_joints=None, gt_bone_lengths=None, edge_rot_dict_general=None):
+def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
+          animations_output_folder, images_output_folder, mean_joints=None, std_joints=None, gt_bone_lengths=None, edge_rot_dict_general=None):
     loader = sample_data(loader)
 
     pbar = range(args.iter)
@@ -207,7 +208,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
     accum = 0.5 ** (32 / (10 * 1000))
 
-    report_every = 2000
+    report_every = args.report_every
     time_measure = []
     start_time_measure = time.time()
     for idx in pbar:
@@ -316,7 +317,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         loss_dict["path_length"] = path_lengths.mean()
 
         if i >= 2000 and i % 2000 == 0 and args.action_recog_model is not None:
-            fid, kid, g_diversity = calc_evaluation_metrics(g_ema)
+            fid, kid, g_diversity = calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints)
             loss_dict['evaluation_metrics_fid'] = fid
             loss_dict['evaluation_metrics_kid'] = kid
             loss_dict['evaluation_metrics_g_diversity'] = g_diversity
@@ -398,7 +399,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
     print(f'\nAverage time for {report_every} iterations: {mean_times} seconds.')
 
 
-def calc_evaluation_metrics(g_ema):
+def calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints):
     # create stgcn model
     stgcn_model = evaluate.initialize_model(device, modelpath= args.action_recog_model, dataset = args.dataset)
 
@@ -430,9 +431,9 @@ def calc_evaluation_metrics(g_ema):
 
     return fid, kid[0], g_diversity
 
-if __name__ == "__main__":
+def main(args_not_parsed):
     parser = TrainOptions()
-    args = parser.parse_args()
+    args = parser.parse_args(args_not_parsed)
     device = args.device
     traits_class = setup_env(args, get_traits=True)
 
@@ -457,7 +458,7 @@ if __name__ == "__main__":
         images_output_folder = osp.join(args.model_save_path, 'images')
         animations_output_folder = osp.join(args.model_save_path, 'animations')
     else:
-        output_folder = args.savemodel_save_path_path if args.model_save_path is not None else osp.expanduser('~/tmp')
+        output_folder = args.model_save_path if args.model_save_path is not None else osp.expanduser('~/tmp')
         logger = None
         images_output_folder = osp.join(output_folder, 'images')
         animations_output_folder = osp.join(output_folder, 'animations')
@@ -550,5 +551,9 @@ if __name__ == "__main__":
         drop_last=True,
     )
 
-    train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger,
-          mean_joints, std_joints, gt_bone_lengths, edge_rot_dict_general)
+    train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
+          animations_output_folder, images_output_folder, mean_joints, std_joints, gt_bone_lengths, edge_rot_dict_general)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

@@ -13,10 +13,11 @@ def polynomial_mmd_averages(codes_g, codes_r, n_subsets=50, subset_size=1000,
         vars = np.zeros(n_subsets)
     choice = np.random.choice
 
+    replace = subset_size < len(codes_g)
     with tqdm(range(n_subsets), desc='MMD', file=output, disable=True) as bar:
         for i in bar:
-            g = codes_g[choice(len(codes_g), subset_size, replace=False)]
-            r = codes_r[choice(len(codes_r), subset_size, replace=False)]
+            g = codes_g[choice(len(codes_g), subset_size, replace=replace)]
+            r = codes_r[choice(len(codes_r), subset_size, replace=replace)]
             o = polynomial_mmd(g, r, **kernel_args, var_at_m=m, ret_var=ret_var)
             if ret_var:
                 mmds[i], vars[i] = o

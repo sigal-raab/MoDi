@@ -3,6 +3,7 @@ import os
 import functools
 from tqdm import tqdm
 import torch
+import sys
 
 from utils.visualization import motion2bvh
 from utils.data import Joint, Edge # used by the 'eval' command
@@ -71,9 +72,9 @@ def inverse_optim(args, g_ema, discriminator, device, mean_latent, target_motion
     return target_W.detach().cpu().numpy(), motion.detach().cpu().numpy()
 
 
-def main():
+def main(args_not_parsed):
     parser = OptimOptions()
-    args = parser.parse_args()
+    args = parser.parse_args(args_not_parsed)
 
     g_ema, discriminator, motion_data, mean_latent, edge_rot_dict_general = load_all_form_checkpoint(args.ckpt, args, return_motion_data=True)
 
@@ -82,4 +83,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

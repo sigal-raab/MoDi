@@ -21,6 +21,7 @@ from matplotlib import pyplot as plt
 from generate import get_gen_mot_np, sample
 from utils.pre_run import EvaluateOptions, load_all_form_checkpoint
 
+TEST = False
 
 def generate(args, g_ema, device, mean_joints, std_joints, entity):
 
@@ -31,6 +32,8 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     args.truncation = 1
     args.truncation_mean = 4096
     args.motions = 2000
+    if TEST:
+        args.motions = 64
 
     with torch.no_grad():
         g_ema.eval()
@@ -91,20 +94,6 @@ def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general
     generated_motions = np.asarray(generated_motions)
     return generated_motions
 
-def _parse_num_range(s):
-    '''Accept either a comma separated list of numbers 'a,b,c' or a range 'a-c' and return as a list of ints.'''
-
-    range_re = re.compile(r'^(\d+)-(\d+)$')
-    m = range_re.match(s)
-    if m:
-        return list(range(int(m.group(1)), int(m.group(2))+1))
-    vals = s.split(',')
-    return [int(x) for x in vals]
-
-def _parse_list_num_ranges(s):
-    ''' accept comma seperated list of ranges 'a-c','d-e' and return list of lists of int [[a,b,c],[d,e]]'''
-    ranges = s.split(',')
-    return [_parse_num_range(r) for r in ranges]
 #endregion
 
 def calculate_activation_statistics(activations):
@@ -242,7 +231,8 @@ def main(args_not_parsed):
     except:
         pass  # in some configurations the image cannot be shown
 
-    save_results(args, fid, kid, (generated_diversity, dataset_diversity),
+    if not TEST:
+        save_results(args, fid, kid, (generated_diversity, dataset_diversity),
                  (precision, recall), fig_hist_generated, fig_hist_dataset)
 
 

@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import sys
 import shutil
 from glob import glob
 import numpy as np
@@ -14,6 +15,7 @@ from utils.data import calc_bone_lengths
 import generate
 from utils.pre_run import EditOptions
 
+TEST = False
 
 def calc_attribute_score(attr, data_path, score_path, **kwargs):
 
@@ -212,7 +214,7 @@ def r_wrist_accel_score(anim, names, joint_locations, bone_lengths, **kwargs):
     return r_wrist_accel
 
 
-def latent_space_edit(model, entity, attributes, stages):
+def latent_space_edit(args, model, entity, attributes, stages):
     if entity == 'Joint':
         kwargs = {'r_wrist': 'r_wrist', 'r_elbow': 'r_elbow', 'pelvis': 'pelvis', 'chin': 'chin',
                   'r_ankle': 'r_ankle', 'l_ankle': 'l_ankle', 'vert_axis': 2}
@@ -222,7 +224,7 @@ def latent_space_edit(model, entity, attributes, stages):
                   'r_ankle': 'RightFoot', 'l_ankle': 'LeftFoot', 'vert_axis': 1}
 
     # stage generate_motions
-    data_path = generate_random_motions(model, stages)
+    data_path = generate_random_motions(args, model, stages)
 
     for attribute in attributes:
         print(f'***\n*** attribute = {attribute}\n***')
@@ -234,13 +236,13 @@ def latent_space_edit(model, entity, attributes, stages):
         boundary_path, boundary_normal, boundary_const = calc_boundary(latent_codes, score_path, scores, stages)
 
         # stage edit
-        edit(boundary_path=boundary_path, extreme_idx=extreme_idx, model=model, seeds=seeds, score_path=score_path,
+        edit(args=args, boundary_path=boundary_path, extreme_idx=extreme_idx, model=model, seeds=seeds, score_path=score_path,
              stages=stages, entity=entity)
 
     pd.Series({'type': 'multi_edits', 'entity':entity}).to_csv(osp.join(data_path, 'args.csv'), sep='\t', header=None) # save args
 
 
-def edit(boundary_path, extreme_idx, model, seeds, score_path, stages, entity):
+def edit(args, boundary_path, extreme_idx, model, seeds, score_path, stages, entity):
     print('***\n*** Stage edit: Editing.\n***')
     if stages['edit'] is None:
         edit_types = ['min', 'max', 'avg']
@@ -346,11 +348,12 @@ def calc_score(attribute, data_path, kwargs, stages):
     return extreme_idx, latent_codes, score_path, scores, seeds
 
 
-def generate_random_motions(model, stages):
+def generate_random_motions(args, model, stages):
     # generate 10K images to calculate svm over
     print_str = '***\n*** Stage generate_motions: '
     if stages['generate_motions'] is None:
         n_motions = 10000
+        if TEST: n_motions = 10
         print(print_str + f'Generating {n_motions} random motions.\n***')
         generate_params = ['--motions', str(n_motions), '--ckpt', model, '--truncation', '1', '--type', 'sample', '--path', args.path]
         data_path = generate.main(generate_params)
@@ -489,9 +492,12 @@ def train_boundary(latent_codes,
   return a / np.linalg.norm(a), classifier.intercept_[0] / np.linalg.norm(a)
 
 
-if __name__ == "__main__":
+def main(args_not_parsed):
     parser = EditOptions()
-    args = parser.parse_args()
+    args = parser.parse_args(args_not_parsed)
 
     stages = {'generate_motions': args.data_path, 'calc_score': args.score_path, 'train_boundary': None, 'edit': None}
-    latent_space_edit(args.model_path, args.entity, args.attr, stages)
+    latent_space_edit(args, args.model_path, args.entity, args.attr, stages)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
