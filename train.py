@@ -370,7 +370,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                         "mean_joints": mean_joints,
                         "std_joints": std_joints
                     },
-                    osp.join(args.save_path, f"checkpoint/{str(i).zfill(6)}.pt")
+                    osp.join(args.model_save_path, f"checkpoint/{str(i).zfill(6)}.pt")
                 )
                 fake_motion = fake_img.transpose(1,2).detach().cpu().numpy()
 
@@ -449,23 +449,23 @@ if __name__ == "__main__":
         images_output_folder = osp.join(output_folder, task_destination, 'images')
         animations_output_folder = osp.join(output_folder, task_destination, 'animations')
     elif args.tensorboard:
-        output_folder = os.path.join(args.save_path, 'tensorboard_outputs')
+        output_folder = os.path.join(args.model_save_path, 'tensorboard_outputs')
         os.makedirs(output_folder, exist_ok=True)
         from torch.utils.tensorboard import SummaryWriter
         writer = SummaryWriter(output_folder)
         logger = LossRecorder(writer)
-        images_output_folder = osp.join(args.save_path, 'images')
-        animations_output_folder = osp.join(args.save_path, 'animations')
+        images_output_folder = osp.join(args.model_save_path, 'images')
+        animations_output_folder = osp.join(args.model_save_path, 'animations')
     else:
-        output_folder = args.save_path if args.save_path is not None else osp.expanduser('~/tmp')
+        output_folder = args.savemodel_save_path_path if args.model_save_path is not None else osp.expanduser('~/tmp')
         logger = None
         images_output_folder = osp.join(output_folder, 'images')
         animations_output_folder = osp.join(output_folder, 'animations')
 
     os.makedirs(images_output_folder, exist_ok=True)
     os.makedirs(animations_output_folder, exist_ok=True)
-    os.makedirs(args.save_path, exist_ok=True)
-    os.makedirs(osp.join(args.save_path, 'checkpoint'), exist_ok=True)
+    os.makedirs(args.model_save_path, exist_ok=True)
+    os.makedirs(osp.join(args.model_save_path, 'checkpoint'), exist_ok=True)
 
     n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = n_gpu > 1

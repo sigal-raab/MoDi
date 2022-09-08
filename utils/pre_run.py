@@ -27,7 +27,7 @@ class TrainBaseOptions(BaseOptions):
         parser.add_argument("--d_lr", type=float, default=0.002, help="discriminator learning rate")
         parser.add_argument("--clearml", action="store_true", help="use trains logging")
         parser.add_argument("--tensorboard", action="store_true", help="use tensorboard for loss recording")
-        parser.add_argument("--save_path", type=str, default='checkpoint', help="path for saving model")
+        parser.add_argument("--model_save_path", type=str, default='checkpoint', help="path for saving model")
         parser.add_argument("--on_cluster_training", action='store_true',
                             help="When training on cluster, use standard print instead of tqdm")
         parser.add_argument("--batch", type=int, default=16, help="batch sizes for each gpus")
