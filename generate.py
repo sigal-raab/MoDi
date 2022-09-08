@@ -6,13 +6,12 @@ import re
 import pandas as pd
 
 import torch
-from models.gan import Generator
 import numpy as np
 from utils.visualization import motion2fig, motion2bvh
 import matplotlib.pyplot as plt
 import sys as _sys
 from utils.data import motion_from_raw, to_cpu
-from utils.pre_run import setup_env, get_ckpt_args
+from utils.pre_run import GenerateOptions, load_all_form_checkpoint
 from utils.data import Joint, Edge # to be used in 'eval'
 
 
@@ -259,91 +258,11 @@ def _parse_num_range(s):
     return [int(x) for x in vals]
 
 
-def _parse_interp_seeds(s):
-    ''' Accept comma seperated list of numbers or ranges 'a,b,c-d' and returns a list of lists [[a],[b],[c,d]]'''
-    seeds = s.split(',')
-    interps = []
-    for seed in seeds:
-        range_re = re.compile(r'^(\d+)-(\d+)$')
-        m = range_re.match(seed)
-        if m:
-            interps.append([int(m.group(1)), int(m.group(2))])
-        else:
-            interps.append([int(seed)])
-    return interps
-
-
-def _parse_list_num_ranges(s):
-    ''' accept comma seperated list of ranges 'a-c','d-e' and return list of lists of int [[a,b,c],[d,e]]'''
-    ranges = s.split(',')
-    return [_parse_num_range(r) for r in ranges]
-
-
 def main(args_not_parsed):
-    device = "cuda"
-
-    parser = argparse.ArgumentParser(description="Generate samples from the generator")
-
-    parser.add_argument(
-        "--motions", type=int, default=20, help="number of motions to be generated"
-    )
-    parser.add_argument("--type", type=str, default='sample',
-                        choices=['sample','truncation_series','interp', 'edit'],
-                        help="generation type: \n"
-                             "sample: generate n_motions motions\n"
-                             "interpolate: interpolate W space of two random motions \n"
-                             "edit: latent space editing\n")
-
-    parser.add_argument('--path', type=str, help='Path to ground truth file that was used during train. Not needed unless one wants to override the local path saved by the network')
-    parser.add_argument('--out_path', type=str, help='Path to output folder. If not provided, output folder will be <ckpt/ckpt_files/timestamp')
-
-    # related to sample
-    parser.add_argument('--sample_seeds', type=_parse_num_range, help='Seeds to use for generation')
-    parser.add_argument('--return_sub_motions', action='store_true', help='Return motions created by coarse pyramid levels')
-    parser.add_argument('--no_idle', action='store_true', help='sample only non-idle motions')
-
-    # related to interpolate
-    parser.add_argument('--interp_seeds', type=_parse_interp_seeds, help='Seeds to use for interpolation')
-
-    # related to latent space editing
-    parser.add_argument('--boundary_path', type=str, help='Path to boundary file')
-    parser.add_argument('--edit_radius', type=float, help='Editing radius (i.e., max change of W in editing direction)')
-
-    parser.add_argument("--truncation", type=float, default=1, help="truncation ratio")
-    parser.add_argument(
-        "--truncation_mean",
-        type=int,
-        default=4096,
-        help="number of vectors to calculate mean for the truncation",
-    )
-    parser.add_argument(
-        "--ckpt",
-        type=str,
-        required=True,
-        help="path to the model checkpoint",
-    )
-    parser.add_argument(
-        "--simple_idx", type=int, default=0, help="use simple idx for output bvh files"
-    )
-    args = parser.parse_args(args=args_not_parsed)
-
-    checkpoint = torch.load(args.ckpt)
-
-    args = get_ckpt_args(args, checkpoint['args'])
-
-    traits_class = setup_env(args, get_traits=True)
-
-    entity = eval(args.entity)
-
-    g_ema = Generator(
-        args.latent, args.n_mlp, traits_class=traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
-    ).to(device)
-
-    g_ema.load_state_dict(checkpoint["g_ema"])
-
-    mean_joints = checkpoint['mean_joints']
-    std_joints = checkpoint['std_joints']
-
+    parser = GenerateOptions()
+    args = parser.parse_args(args_not_parsed)
+    device = args.device
+    g_ema, discriminator, checkpoint, entity, mean_joints, std_joints = load_all_form_checkpoint(args.ckpt, args)
     out_path = generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
     return out_path
 

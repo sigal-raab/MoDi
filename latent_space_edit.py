@@ -13,6 +13,7 @@ from Motion import BVH
 from Motion import Animation
 from utils.data import calc_bone_lengths
 import generate
+from utils.pre_run import EditOptions
 
 
 def calc_attribute_score(attr, data_path, score_path, **kwargs):
@@ -490,18 +491,7 @@ def train_boundary(latent_codes,
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate samples from the generator and compute action recognition model features")
-    parser.add_argument("--model_path", type=str, help="path to model file")
-    parser.add_argument("--data_path", type=str, default=None,
-                        help="path to data folder, if the 'generate_motions' stage has already been done")
-    parser.add_argument("--score_path", type=str, default=None,
-                        help="path to scores folder, if the 'calc_score' stage has already been done")
-    parser.add_argument("--entity", type=str, default='Edge', choices=['Joint', 'Edge'],
-                        help="entity type: joint for joint locations, or edge for edge rotations")
-    parser.add_argument("--attr", type=str, default=['r_hand_lift_up'], nargs='+',
-                        choices=['r_hand_lift_up', 'r_elbow_angle', 'r_wrist_accel', 'r_wrist_vert', 'verticality'],
-                        help="list of attributes to be edited")
-    parser.add_argument('--path', type=str, help='Path to ground truth file that was used during train. Not needed unless one wants to override the local path saved by the network')
+    parser = EditOptions()
     args = parser.parse_args()
 
     stages = {'generate_motions': args.data_path, 'calc_score': args.score_path, 'train_boundary': None, 'edit': None}

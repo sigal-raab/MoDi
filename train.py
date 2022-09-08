@@ -431,11 +431,9 @@ def calc_evaluation_metrics(g_ema):
     return fid, kid[0], g_diversity
 
 if __name__ == "__main__":
-    device = "cuda" #"cpu" #
-
     parser = TrainOptions()
     args = parser.parse_args()
-
+    device = args.device
     traits_class = setup_env(args, get_traits=True)
 
     if args.clearml:

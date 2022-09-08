@@ -1,5 +1,4 @@
 from evaluation.models.stgcn import STGCN
-import argparse
 import re
 import pandas as pd
 import os.path as osp
@@ -9,24 +8,18 @@ import datetime
 import torch
 
 from torch.utils.data import DataLoader
-from models.gan import Generator
 import numpy as np
-from utils.data import anim_from_edge_rot_dict
-from utils.data import un_normalize
-from utils.data import edge_rot_dict_from_edge_motion_data
+from utils.data import anim_from_edge_rot_dict, un_normalize, edge_rot_dict_from_edge_motion_data, motion_from_raw
+from utils.data import Joint, Edge # to be used in 'eval'
 import sys as _sys
 from evaluation.action2motion.fid import calculate_fid
 from evaluation.action2motion.diversity import calculate_diversity
 from evaluation.metrics.kid import calculate_kid
 from evaluation.metrics.precision_recall import precision_and_recall
-from tqdm import tqdm
 from Motion import Animation
 from matplotlib import pyplot as plt
-from utils.data import motion_from_raw
-from generate import get_gen_mot_np
-from generate import sample
-from utils.pre_run import setup_env, get_ckpt_args
-from utils.data import Joint, Edge # to be used in 'eval'
+from generate import get_gen_mot_np, sample
+from utils.pre_run import EvaluateOptions, load_all_form_checkpoint
 
 
 def generate(args, g_ema, device, mean_joints, std_joints, entity):
@@ -158,42 +151,11 @@ def compute_features(model, iterator):
 
 
 def main(args_not_parsed):
+    parser = EvaluateOptions()
+    args = parser.parse_args(args_not_parsed)
+    device = args.device
 
-    #region configurations
-    device = "cuda"
-    parser = argparse.ArgumentParser(description="Generate samples from the generator and compute action recognition model features")
-    parser.add_argument('--path', type=str,
-                        help='Path to ground truth file that was used during train. Not needed unless one wants to override the local path saved by the network')
-    parser.add_argument(
-        "--ckpt",
-        type=str,
-        required=True,
-        help="path to the model checkpoint",
-    )
-    parser.add_argument(
-        "--dataset", type=str, default='mixamo', choices=['mixamo', 'humanact12'], help='on which dataset to evaluate')
-    parser.add_argument(
-        "--rot_only", action="store_true",
-        help="refrain from predicting global root position when predicting rotations"
-    )
-    parser.add_argument(
-        "--test_model", action="store_true",
-        help="generate motions with model and evaluate"
-    )
-    parser.add_argument(
-        "--test_actor", action="store_true",
-        help="evaluate results from ACTOR model"
-    )
-
-    parser.add_argument('--act_rec_gt_path', type=str, help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
-    parser.add_argument('--fast', action='store_true', help='skip metrics that require long evaluation')
-    parser.add_argument('--out_path', type=str, help='path to output folder. If not provided, output folder will be <ckpt/ckpt_files/timestamp')
-    parser.add_argument('--actor_motions_path', type=str, help='path to randomly generated actor motions')
-
-    args = parser.parse_args(args=args_not_parsed)
-
-    checkpoint = torch.load(args.ckpt)
-    args = get_ckpt_args(args, checkpoint['args'])
+    g_ema, discriminator, checkpoint, entity, mean_joints, std_joints = load_all_form_checkpoint(args.ckpt, args)
 
     if not (getattr(args, 'test_model', None) ^ getattr(args, 'test_actor', None)):
         setattr(args, 'test_model', True)
@@ -201,22 +163,6 @@ def main(args_not_parsed):
     if args.act_rec_gt_path is None:
         args.act_rec_gt_path = args.path
 
-    traits_class = setup_env(args, get_traits=True)
-
-    entity = eval(args.entity)
-    #endregion
-
-    #region generator
-    g_ema = Generator(
-        args.latent, args.n_mlp, traits_class = traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
-    ).to(device)
-
-    g_ema.load_state_dict(checkpoint["g_ema"])
-
-    mean_joints = checkpoint['mean_joints']
-    std_joints = checkpoint['std_joints']
-
-    #endregion
     modelpath = "evaluation/checkpoint_0300_mixamo_acc_0.74_train_test_split_smaller_arch.tar"
     if args.dataset == 'humanact12':
         modelpath = 'evaluation/humanact12_checkpoint_0150_acc_1.0.pth.tar'

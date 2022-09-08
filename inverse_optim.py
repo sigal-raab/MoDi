@@ -1,16 +1,12 @@
 import os.path as osp
 import os
-import pandas as pd
 import functools
 from tqdm import tqdm
-import numpy as np
 import torch
 
-from models.gan import Generator, Discriminator
 from utils.visualization import motion2bvh
 from utils.data import Joint, Edge # used by the 'eval' command
-from utils.data import motion_from_raw
-from utils.pre_run import OptimOptions, setup_env, get_ckpt_args
+from utils.pre_run import OptimOptions, load_all_form_checkpoint
 
 
 def inverse_optim(args, g_ema, discriminator, device, mean_latent, target_motion, edge_rot_dict_general):
@@ -75,41 +71,11 @@ def inverse_optim(args, g_ema, discriminator, device, mean_latent, target_motion
     return target_W.detach().cpu().numpy(), motion.detach().cpu().numpy()
 
 
-def load_all(ckpt_path, args, need_env=True):
-    """Load everything from the path"""
-    device = args.device
-    checkpoint = torch.load(ckpt_path, map_location=device)
-
-    args = get_ckpt_args(args, checkpoint['args'])
-
-    traits_class = setup_env(args, get_traits=True)
-
-    entity = eval(args.entity)
-
-    g_ema = Generator(
-        args.latent, args.n_mlp, traits_class=traits_class, entity=entity
-    ).to(device)
-
-    g_ema.load_state_dict(checkpoint["g_ema"])
-
-    discriminator = Discriminator(traits_class=traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
-                                  ).to(device)
-
-    discriminator.load_state_dict(checkpoint["d"])
-
-    motion_data_raw = np.load(args.path, allow_pickle=True)
-    motion_data, mean_joints, std_joints, edge_rot_dict_general = motion_from_raw(args, motion_data_raw)
-
-    mean_latent = g_ema.mean_latent(args.truncation_mean)
-
-    return g_ema, discriminator, motion_data, mean_latent, edge_rot_dict_general
-
-
 def main():
     parser = OptimOptions()
     args = parser.parse_args()
 
-    g_ema, discriminator, motion_data, mean_latent, edge_rot_dict_general = load_all(args.ckpt, args)
+    g_ema, discriminator, motion_data, mean_latent, edge_rot_dict_general = load_all_form_checkpoint(args.ckpt, args, return_motion_data=True)
 
     target_motion = motion_data[[args.target_idx]]
     res = inverse_optim(args, g_ema, discriminator, args.device, mean_latent, target_motion, edge_rot_dict_general)
