@@ -6,7 +6,6 @@ import numpy as np
 import re
 import csv
 import pandas as pd
-import argparse
 from sklearn import svm
 
 from Motion import BVH

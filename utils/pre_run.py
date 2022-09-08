@@ -1,13 +1,11 @@
 import argparse
 import re
-
 import numpy as np
 import torch
-
 from models.gan import Generator, Discriminator
 from utils.data import Edge, motion_from_raw
 
-#region Parser Options
+# region Parser Options
 class BaseOptions:
     def __init__(self):
         parser = argparse.ArgumentParser()
@@ -46,85 +44,47 @@ class TrainOptions(TrainBaseOptions):
     def __init__(self):
         super(TrainOptions, self).__init__()
         parser = self.parser
-
         parser.add_argument("--path", type=str, help="path to dataset")
         parser.add_argument("--r1", type=float, default=10, help="weight of the r1 regularization")
-        parser.add_argument("--path_regularize",type=float,default=2,help="weight of the path length regularization",)
-        parser.add_argument("--path_batch_shrink",type=int,default=2,help="batch size reducing factor for the path length regularization (reduce memory consumption)")
-        parser.add_argument("--g_foot_reg_weight", type=float, default=1, help="weight of the foot contact regularization")
-        parser.add_argument("--g_encourage_contact_weight", type=float, default=0.01,help="weight of the foot contact encouraging regularization")
+        parser.add_argument("--path_regularize",type=float,default=2,
+                            help="weight of the path length regularization",)
+        parser.add_argument("--path_batch_shrink",type=int,default=2,
+                            help="batch size reducing factor for the path length regularization (reduce memory consumption)")
+        parser.add_argument("--g_foot_reg_weight", type=float, default=1,
+                            help="weight of the foot contact regularization")
+        parser.add_argument("--g_encourage_contact_weight", type=float, default=0.01,
+                            help="weight of the foot contact encouraging regularization")
         parser.add_argument("--g_reg_every",type=int,default=4, help="interval of the applying path length regularization",)
-        parser.add_argument(
-            "--mixing", type=float, default=0.9, help="probability of latent code mixing"
-        )
-        parser.add_argument(
-            "--ckpt",
-            type=str,
-            default=None,
-            help="path to the checkpoints to resume training",
-        )
+        parser.add_argument("--mixing", type=float, default=0.9, help="probability of latent code mixing")
+        parser.add_argument("--ckpt", type=str, default=None, help="path to the checkpoints to resume training",)
         parser.add_argument("--g_lr", type=float, default=0.002, help="generator learning rate")
-        parser.add_argument(
-            "--channel_multiplier",
-            type=int,
-            default=2,
-            help="channel multiplier factor for the model. config-f = 2, else = 1",
-        )
-        parser.add_argument(
-            "--name", type=str, default="no_name_defined",
-            help="name to be used for clearml experiment. example: Jasper_all_5K_no_norm_mixing_0p9_conv3_fan_in"
-        )
-        parser.add_argument(
-            "--normalize", action="store_true", help="normalize data"
-        )
-        parser.add_argument(
-            "--local_rank", type=int, default=0, help="local rank for distributed training"
-        )
-        parser.add_argument(
-            "--skeleton", action="store_true", help="use skeleton-aware architecture"
-        )
-        parser.add_argument(
-            "--joints_pool", action="store_true",
-            help="manipulate joints by pool/unpool rather than conv (skeleton-aware only)"
-        )
-        parser.add_argument(
-            "--conv3", action="store_true", help="use 3D convolutions (skeleton-aware only)"
-        )
-        parser.add_argument(
-            "--entity", type=str, default='Edge', choices=['Joint', 'Edge'],
-            help="entity type: Joint for joint locations, or Edge for edge rotations"
-        )
-        parser.add_argument(
-            "--glob_pos", action="store_true",
-            help="refrain from predicting global root position when predicting rotations"
-        )
-        parser.add_argument(
-            '--return_sub_motions', action='store_true', help='Return motions created by coarse pyramid levels')
-        parser.add_argument(
-            "--foot", action="store_true", help="apply foot contact loss"
-        )
-        parser.add_argument(
-            "--axis_up", choices=[0, 1, 2], type=int, default=1,
-            help="which axis points at the direction of a standing person's head? currently it is z for locations and y for rotations."
-        )
-        parser.add_argument(
-            "--v2_contact_loss", action='store_true',
-            help="New contact loss"
-        )
-        parser.add_argument(
-            "--use_velocity", action='store_true',
-            help="Use velocity at root joint instead of position"
-        )
-        parser.add_argument(
-            "--rotation_repr", type=str, default='quaternion',
-        )
+        parser.add_argument("--channel_multiplier", type=int, default=2,
+                            help="channel multiplier factor for the model. config-f = 2, else = 1",)
+        parser.add_argument("--name", type=str, default="no_name_defined",
+                            help="name to be used for clearml experiment. example: Jasper_all_5K_no_norm_mixing_0p9_conv3_fan_in")
+        parser.add_argument("--normalize", action="store_true", help="normalize data")
+        parser.add_argument("--local_rank", type=int, default=0, help="local rank for distributed training")
+        parser.add_argument("--skeleton", action="store_true", help="use skeleton-aware architecture")
+        parser.add_argument("--joints_pool", action="store_true",
+                            help="manipulate joints by pool/unpool rather than conv (skeleton-aware only)")
+        parser.add_argument("--conv3", action="store_true", help="use 3D convolutions (skeleton-aware only)")
+        parser.add_argument("--entity", type=str, default='Edge', choices=['Joint', 'Edge'],
+                            help="entity type: Joint for joint locations, or Edge for edge rotations")
+        parser.add_argument("--glob_pos", action="store_true",
+                            help="refrain from predicting global root position when predicting rotations")
+        parser.add_argument('--return_sub_motions', action='store_true',
+                            help='Return motions created by coarse pyramid levels')
+        parser.add_argument("--foot", action="store_true", help="apply foot contact loss")
+        parser.add_argument("--axis_up", choices=[0, 1, 2], type=int, default=1,
+                            help="which axis points at the direction of a standing person's head? currently it is z for locations and y for rotations.")
+        parser.add_argument("--v2_contact_loss", action='store_true', help="New contact loss")
+        parser.add_argument("--use_velocity", action='store_true', help="Use velocity at root joint instead of position")
+        parser.add_argument("--rotation_repr", type=str, default='quaternion')
         parser.add_argument('--latent', type=int, default=512, help='Size of latent space')
         parser.add_argument('--n_mlp', type=int, default=8, help='Number of MLP for mapping z to W')
         parser.add_argument('--n_frames_dataset', type=int, default=64)
-        parser.add_argument(
-            "--n_inplace_conv", default=2, type=int,
-            help="Number of self convolutions within each hierarchical layer. StyleGAN original is 1. "
-        )
+        parser.add_argument("--n_inplace_conv", default=2, type=int,
+                            help="Number of self convolutions within each hierarchical layer. StyleGAN original is 1. ")
         parser.add_argument('--act_rec_gt_path', type=str,
                             help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
         self.parser = parser
@@ -145,7 +105,8 @@ class TestBaseOptions(BaseOptions):
         parser.add_argument('--out_path', type=str,
                             help='Path to output folder. If not provided, output folder will be <ckpt/ckpt_files/timestamp')
         parser.add_argument("--truncation", type=float, default=1, help="truncation ratio")
-        parser.add_argument("--truncation_mean",type=int,default=4096,help="number of vectors to calculate mean for the truncation",)
+        parser.add_argument("--truncation_mean",type=int,default=4096,
+                            help="number of vectors to calculate mean for the truncation",)
         parser.add_argument("--ckpt",type=str,help="path to the model checkpoint",)
         parser.add_argument("--simple_idx", type=int, default=0, help="use simple idx for output bvh files")
         self.parser = parser
@@ -173,7 +134,6 @@ class GenerateOptions(TestBaseOptions):
                                  "sample: generate n_motions motions\n"
                                  "interpolate: interpolate W space of two random motions \n"
                                  "edit: latent space editing\n")
-
         # related to sample
         parser.add_argument('--sample_seeds', type=_parse_num_range, help='Seeds to use for generation')
         parser.add_argument('--return_sub_motions', action='store_true',
@@ -185,18 +145,22 @@ class GenerateOptions(TestBaseOptions):
 
         # related to latent space editing
         parser.add_argument('--boundary_path', type=str, help='Path to boundary file')
-        parser.add_argument('--edit_radius', type=float, help='Editing radius (i.e., max change of W in editing direction)')
+        parser.add_argument('--edit_radius', type=float,
+                            help='Editing radius (i.e., max change of W in editing direction)')
 
 class EvaluateOptions(TestBaseOptions):
     def __init__(self):
         super().__init__()
         parser = self.parser
-        parser.add_argument("--dataset", type=str, default='mixamo', choices=['mixamo', 'humanact12'],help='on which dataset to evaluate')
-        parser.add_argument("--rot_only", action="store_true",help="refrain from predicting global root position when predicting rotations")
-        parser.add_argument("--test_model", action="store_true",help="generate motions with model and evaluate")
-        parser.add_argument("--test_actor", action="store_true",help="evaluate results from ACTOR model")
+        parser.add_argument("--dataset", type=str, default='mixamo', choices=['mixamo', 'humanact12'],
+                            help='on which dataset to evaluate')
+        parser.add_argument("--rot_only", action="store_true",
+                            help="refrain from predicting global root position when predicting rotations")
+        parser.add_argument("--test_model", action="store_true", help="generate motions with model and evaluate")
+        parser.add_argument("--test_actor", action="store_true", help="evaluate results from ACTOR model")
 
-        parser.add_argument('--act_rec_gt_path', type=str,help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
+        parser.add_argument('--act_rec_gt_path', type=str,
+                            help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
         parser.add_argument('--fast', action='store_true', help='skip metrics that require long evaluation')
         parser.add_argument('--actor_motions_path', type=str, help='path to randomly generated actor motions')
 
