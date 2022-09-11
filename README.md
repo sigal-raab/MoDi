@@ -45,14 +45,14 @@ pip install clearml
 
 We provide a pretrained model for motion synthesis. 
 
-Download the [pretrained model](https://drive.google.com/file/d/1edzdGtkjNSxnSl2ig2UeGnHRG_xcaSWG/view?usp=sharing). 
+Download the [pretrained model](https://drive.google.com/file/d/1Ezd6fW33B4GjmycKPVO-s0yIBfnqu9T5/view?usp=sharing). 
 
 Create a folder by the name `data` and place the downloaded model in it.
 
 
 ### Data for a Quick Start
 
-We use Mixamo dataset to train our model. You can download our preprocessed data from 
+We use the Mixamo dataset to train our model. You can download our preprocessed data from 
  [Google Drive](https://drive.google.com/file/d/1tloa9eXbnZj9IkdK01M96uw2GWgBhhQJ/view?usp=sharing) into the `data` folder. 
 Unzip it using `gunzip`.
 
