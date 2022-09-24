@@ -22,7 +22,7 @@ The library is still under development.
 
 This code has been tested under Ubuntu 16.04 and Cuda 10.2. Before starting, please configure your Conda environment by
 ~~~bash
-conda env create --name MoDi --file environment.yaml
+conda create --name MoDi --file environment.yaml
 conda activate MoDi
 ~~~
 or by 
