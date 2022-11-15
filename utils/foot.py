@@ -5,6 +5,7 @@ import numpy as np
 
 def get_foot_contact(motion_data, use_glob_pos, axis_up, edge_rot_dict_general, foot_names):
     # from utils.data import foot_names
+    motion_data = motion_data * edge_rot_dict_general['std'][:, :, :motion_data.shape[2]] + edge_rot_dict_general['mean'][:, :, :motion_data.shape[2]]
     n_motions, _, _, n_frames = motion_data.shape
     data_dtype = motion_data.dtype
     # compute joint locations
