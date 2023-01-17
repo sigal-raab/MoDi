@@ -56,8 +56,8 @@ def data_sampler(dataset, shuffle, distributed):
 def requires_grad(model, flag=True):
     for name, p in model.named_parameters():
         # refrain from computing gradients for parameters that are 'non_grad': masks, etc.
-        if flag == False or \
-                flag == True and hasattr(model, 'non_grad_params') and name not in model.non_grad_params:
+        if flag is False or \
+                flag is True and hasattr(model, 'non_grad_params') and name not in model.non_grad_params:
             p.requires_grad = flag
 
 

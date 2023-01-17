@@ -13,6 +13,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from sentence_transformers import SentenceTransformer
+
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 
 from models.skeleton import SkeletonUnpool
@@ -422,6 +424,8 @@ class Generator(nn.Module):
 
         self.style_dim = style_dim
 
+        self.token_size = 384
+
         layers = [PixelNorm()]
 
         # mapping (style) network and constant
@@ -498,6 +502,9 @@ class Generator(nn.Module):
             if not p.requires_grad:
                 self.non_grad_params.append(name)
 
+        self.text_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+
     def mean_latent(self, n_latent):
         latent_in = torch.randn(
             n_latent, self.style_dim, device=self.input.input.device
@@ -518,7 +525,13 @@ class Generator(nn.Module):
         truncation_latent=None,
         input_is_latent=False,
         return_sub_motions=False,
+            texts=None
     ):
+        if not texts is None:
+            assert len(styles) == len(texts)
+            tokens = self.text_model.encode(texts)
+            styles = [torch.cat([styles[i], tokens[i]], 1) for i in range(len(styles))]  # there's probably a better way using vector operations.
+
         if not input_is_latent:
             # forward the noise through the style pipeline to obtain W
             styles = [self.style(s) for s in styles]
@@ -701,8 +714,11 @@ class Discriminator(nn.Module):
         self.stddev_group = 4
         self.stddev_feat = 1
 
+        self.token_size = 384
+
         skeleton_traits = traits_class(entity.parents_list[0], keep_skeletal_dims(n_joints[0]))
         self.final_conv = ConvLayer(in_channel + 1, self.n_channels[0], 3, skeleton_traits=skeleton_traits) # channels 257-->256, keep dims, kernel=3
+        self.final_conv_tokenized = ConvLayer(in_channel + self.token_size + 1, self.n_channels[0], 3, skeleton_traits=skeleton_traits) # TODO: rewrite this
         self.final_linear = nn.Sequential(
             EqualLinear(self.n_channels[0] * n_joints[0] * self.n_frames[0], self.n_channels[0], activation='fused_lrelu'),
             EqualLinear(self.n_channels[0], 1),
@@ -714,8 +730,9 @@ class Discriminator(nn.Module):
             if not p.requires_grad:
                 self.non_grad_params.append(name)
 
+        self.text_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-    def forward(self, input):
+    def forward(self, input, text=None):
         # input dims: (samples, channels, entities, frames)
         out = self.convs(input)
 
@@ -729,12 +746,16 @@ class Discriminator(nn.Module):
         stddev = stddev.repeat(group, 1, height, width)             # repeat across batch, joints, frames
         out = torch.cat([out, stddev], 1)                           # stddev added as an additional channel
 
-        out = self.final_conv(out)                                  # fuse the additional stddev channel with existing ones
-
+        if text is None:
+            out = self.final_conv(out)                                  # fuse the additional stddev channel with existing ones
+        else:
+            token = self.text_model.encode(text)
+            out = self.final_conv_tokenized(torch.cat([out, token], 1))
         out = out.view(batch, -1)
         out = self.final_linear(out)
 
         return out
+
 
 def keep_skeletal_dims(n_joints):
     return {joint_idx:[joint_idx] for joint_idx in range(n_joints)}
