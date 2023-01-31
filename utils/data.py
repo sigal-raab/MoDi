@@ -13,7 +13,8 @@ import torch # used for foot contact
 from utils.foot import get_foot_contact
 
 
-foot_names = ['LeftFoot', 'RightFoot']
+foot_names_openpose = ['LeftFoot', 'RightFoot']
+foot_names = ['LeftAnkle', 'LeftToes', 'RightAnkle', 'RightToes']  # TODO: is this correct in humanml?
 
 class openpose_joints(object):
     def __init__(self):
@@ -45,6 +46,20 @@ class openpose_joints(object):
         return self.oredered_joint_names[joint_idx]
 
 
+class humanml_joints(openpose_joints):
+    def __init__(self):
+        super().__init__()
+
+        self.oredered_joint_names = \
+            np.array(['pelvis', 'r_heap', 'l_heap', 'spine_low', 'r_knee', 'l_knee', 'spine_mid', 'r_ankle', 'l_ankle',
+                      'spine_high', 'r_toes', 'l_toes', 'collar', 'l_scapula', 'r_scapula', 'chin', 'l_shoulder',
+                      'r_shoulder', 'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist'])
+        self.parent_joint_names = \
+            np.array([np.nan, 'pelvis', 'pelvis', 'pelvis', 'r_heap', 'l_heap', 'spine_low', 'r_knee', 'l_knee',
+                      'spine_mid', 'r_ankle', 'l_ankle', 'spine_high', 'spine_high', 'spine_high', 'collar', 'l_scapula',
+                      'r_scapula', 'l_shoulder', 'r_shoulder', 'l_elbow', 'r_elbow'])
+
+
 def entity2index(obj, ordered_entities):
     """
     convert a data struct (dict, list) of entities to a dict of their indices.
@@ -67,7 +82,7 @@ def entity2index(obj, ordered_entities):
     return res
 
 
-class Joint():
+class OpenposeJoint():
     n_channels = 3
 
     @staticmethod
@@ -92,8 +107,29 @@ class Joint():
                oj.name2idx(oj.parent_joint_names)]  #full skeleton possesses openpose topology
     parents_list = list(map(np.array, parents_list))  # convert list items to np
 
+class Joint(OpenposeJoint):
 
-class Edge():
+    skeletal_pooling_dist_1 = [{0:[0, 1]},
+                           # root: [collar,pelvis]
+                           {0:[0,1,2,3],                             1:[0,3,4,5]},
+                           # collar:[collar,r_wrist,l_wrist,pelvis], pelvis:[pelvis,collar,r_ankle,l_ankle]
+                           {0:[0,1,3,5], 1:[1,2], 2:[3,4], 3:[0,5,6,8], 4:[6,7], 5:[8,9]},
+                           {0:[15, 12, 17, 16], 1:[17, 19], 2:[19, 21], 3:[16, 18], 4:[18, 20], 5:[0, 1, 2], 6:[1, 4], 7:[4, 7, 10], 8:[2, 5], 9:[5, 8, 11]}]
+    skeletal_pooling_dist_0 = [{0:[1]},
+                           {0:[0], 1:[3]},
+                           {0:[0], 1:[2], 2:[4], 3:[5], 4:[7], 5:[9]},
+                           {0:[12], 1:[19], 2:[21], 3:[18], 4:[20], 5:[0], 6:[4], 7:[10], 8:[5], 9:[11]}]
+    hj = humanml_joints()
+    parents_list = [[-1],
+                    [-1,0],
+                    [3,0,0,-1,3,3],
+                    [5,0,1,0,3,-1,5,6,5,8],
+                    hj.name2idx(hj.parent_joint_names)]  #full skeleton possesses openpose topology
+
+    parents_list = list(map(np.array, parents_list))  # convert list items to np
+
+
+class OpenPoseEdge():
     n_channels = 4
 
     @staticmethod
@@ -229,6 +265,79 @@ class Edge():
                         # last entry in current hierarchy pools from last entry in larger hierarchy
                         pooling_list[hierarchical_stage_idx][last_idx_this] = [last_idx_larger]
         cls.n_edges = [len(parents) for parents in cls.parents_list]  # num edges after adding feet
+
+
+class Edge(OpenPoseEdge):
+    edges_list = [
+        [(0, 1)],
+        [(1, 2), (0, 1)],
+        [(3, 7), (0, 1), (0, 2), (0, 3), (0, 6), (3, 4), (3, 5)],
+        [(5, 12), (0, 1), (1, 2), (0, 3), (3, 4), (0, 11), (5, 11), (5, 6), (6, 7), (5, 8), (8, 9), (0, 10)],
+        # order of ground truth:
+        [(0, 22), (0, 3), (6, 3), (9, 6), (12, 9), (15, 12), (9, 13), (16, 13), (16, 18), (18, 20), (9, 14), (17, 14),
+         (17, 19), (19, 21), (0, 2), (2, 5), (5, 8), (8, 11), (0, 1), (1, 4), (4, 7), (7, 10)]
+
+    ]
+    skeletal_pooling_dist_1_edges = [
+    {(0, 1): [(0, 1), (1,2)]},
+    {(1, 2): [(3, 7)], (0, 1): [(0, 1), (0, 2), (0, 3), (0, 6), (3, 4), (3, 5)]},
+    {(3, 7): [(5, 12)], (0, 1): [(0, 1), (1, 2)], (0, 2): [(0, 3), (3, 4)], (0, 3): [(0, 11), (5, 11)], (0, 6): [(0, 10)],
+     (3, 4): [(5, 6), (6, 7)], (3, 5): [(5, 8), (8, 9)]},
+    {(5, 12): [(0, 22)], (0, 1): [(9, 14), (17, 14)], (1, 2): [(17, 19), (19, 21)], (0, 3): [(9, 13), (16, 13)],
+     (3, 4): [(16, 18), (18, 20)], (0, 11): [(9, 6), (12, 9)], (5, 11): [(0, 3), (6, 3)], (5, 6): [(0, 1)],
+     (6, 7): [(1, 4), (4, 7), (7, 10)], (5, 8): [(0, 2)], (8, 9): [(2, 5), (5, 8), (8, 11)], (0, 10): [(15, 12)]}]
+    assert all([list(parents.keys()) == edges for (parents, edges) in zip(skeletal_pooling_dist_1_edges, edges_list)])  # same order as edges_list
+    assert all([set(edges) == set(chain.from_iterable(pooling_list.values())) for edges, pooling_list in zip(edges_list[1:], skeletal_pooling_dist_1_edges)])  # all target edges are covered while up sampling
+    assert all([set(edges) == set(pooling_list.keys()) for edges, pooling_list in zip(edges_list[:-1], skeletal_pooling_dist_1_edges)])  # all source edges are covered while up sampling
+
+    skeletal_pooling_dist_0_edges = [
+    {(0, 1): [(1, 2)]},
+    {(1, 2): [(3, 7)], (0, 1): [(0, 3)]},
+    {(3, 7): [(5, 12)], (0, 1): [(1, 2)], (0, 2): [(3, 4)], (0, 3): [(5, 11)], (0, 6): [(0, 10)],
+     (3, 4): [(6, 7)], (3, 5): [(8, 9)]},
+    {(5, 12): [(0, 22)], (0, 1): [(17, 14)], (1, 2): [(19, 21)], (0, 3): [(16, 13)], (3, 4): [(18, 20)],
+     (0, 11): [(9, 6)], (5, 11): [(0, 3)], (5, 6): [(0, 1)], (6, 7): [(4, 7)], (5, 8): [(0, 2)], (8, 9): [(5, 8)],
+     (0, 10): [(15, 12)]}]
+    assert all([list(parents.keys()) == edges for (parents, edges) in zip(skeletal_pooling_dist_0_edges, edges_list)])  # same order as edges_list
+
+    parents_list_edges = [{(0,1):-1},
+                          {(1,2): -1, (0, 1): (1,2)},
+                          {(3, 7): -1, (0, 1): (0, 3), (0, 2): (0, 3), (0, 3): (3, 7), (0, 6): (0, 3), (3, 4): (3, 7), (3, 5): (3, 7)},
+                          {(5, 12): -1, (0, 1): (0, 11), (1, 2): (0, 1), (0, 3): (0, 11), (3, 4): (0, 3), (0, 11): (5, 11), (5, 11): (5, 12),
+                           (5, 6): (5, 12), (6, 7): (5, 6), (5, 8): (5, 12), (8, 9): (5, 8), (0, 10): (0, 11)},
+                          {(0, 22): -1, (0, 3): (0, 22), (6, 3): (0, 3), (9, 6): (6, 3), (12, 9): (9, 6),
+                           (15, 12): (12, 9), (9, 13): (9, 6), (16, 13): (9, 13), (16, 18): (16, 13),
+                           (18, 20): (16, 18), (9, 14): (9, 6), (17, 14): (9, 14), (17, 19): (17, 14),
+                           (19, 21): (17, 19), (0, 2): (0, 22), (2, 5): (0, 2), (5, 8): (2, 5), (8, 11): (5, 8),
+                           (0, 1): (0, 22), (1, 4): (0, 1), (4, 7): (1, 4), (7, 10): (4, 7)}
+]
+    assert all([list(parents.keys()) == edges for (parents, edges) in zip(parents_list_edges, edges_list)])  # same order as edges_list
+    assert all([list(parents_list.values())[0]==-1 for parents_list in parents_list_edges])  # 1st item is root
+
+    feet_list_edges = [[], [(0, 1)], [(3, 5), (3, 4)], [(8, 9), (6, 7)],
+                       # should be ordered ['LeftAnkle', 'LeftToes', 'RightAnkle', 'RightToes']
+                       # TODO: is this correct in humanml?
+                       [(5, 8), (8, 11), (4, 7), (7, 10)]]
+
+
+    n_hierarchical_stages = len(parents_list_edges)
+    assert len(edges_list) == n_hierarchical_stages and len(parents_list_edges) == n_hierarchical_stages and \
+           len(feet_list_edges) == n_hierarchical_stages
+
+
+    # edge values to edge indices
+    skeletal_pooling_dist_1 = [entity2index(pooling_edges, [smaller_edges,[larger_edges]])
+                               for pooling_edges, smaller_edges, larger_edges
+                               in zip(skeletal_pooling_dist_1_edges, edges_list[:-1], edges_list[1:])]
+    skeletal_pooling_dist_0 = [entity2index(pooling_edges, [smaller_edges,[larger_edges]])
+                               for pooling_edges, smaller_edges, larger_edges
+                               in zip(skeletal_pooling_dist_0_edges, edges_list[:-1], edges_list[1:])]
+    parents_list = [entity2index(item, [edges, edges]) for item, edges in zip(parents_list_edges, [edges+[-1] for edges in edges_list])]
+    # restore the -1
+    parents_list = [[val if val != len(edges) else -1 for val in parents.values()] for parents, edges in zip(parents_list, edges_list)]
+    feet_idx_list = [entity2index(item, [edges, edges]) for item, edges in zip(feet_list_edges, [edges + [-1] for edges in edges_list])]
+    n_edges = [len(parents) for parents in parents_list]
+
 
 
 def collect_motions_loc(root_path):
