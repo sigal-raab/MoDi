@@ -14,7 +14,7 @@ from utils.foot import get_foot_contact
 
 
 foot_names_openpose = ['LeftFoot', 'RightFoot']
-foot_names = ['LeftAnkle', 'LeftToes', 'RightAnkle', 'RightToes']  # TODO: is this correct in humanml?
+foot_names = ['LeftAnkle', 'LeftToes', 'RightAnkle', 'RightToes']
 
 class openpose_joints(object):
     def __init__(self):
@@ -319,7 +319,6 @@ class Edge(OpenPoseEdge):
 
     feet_list_edges = [[], [(0, 1)], [(3, 5), (3, 4)], [(8, 9), (6, 7)],
                        # should be ordered ['LeftAnkle', 'LeftToes', 'RightAnkle', 'RightToes']
-                       # TODO: is this correct in humanml?
                        [(5, 8), (8, 11), (4, 7), (7, 10)]]
 
 
