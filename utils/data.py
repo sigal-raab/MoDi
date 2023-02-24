@@ -54,7 +54,7 @@ class humanml_joints(openpose_joints):
         self.oredered_joint_names = \
             np.array(prepare_modi_data.SMPL_JOINT_NAMES)
         self.parent_joint_names = \
-            np.array([np.nan, 'Pelvis', 'Pelvis', 'Pelvis', 'Pelvis', 'L_Hip', 'R_Hip', 'Spine1', 'L_Knee', 'R_Knee',
+            np.array([np.nan, 'Pelvis', 'Pelvis', 'Pelvis', 'L_Hip', 'R_Hip', 'Spine1', 'L_Knee', 'R_Knee',
                       'Spine2', 'L_Ankle', 'R_Ankle', 'Spine3', 'Spine3', 'Spine3', 'Neck', 'L_Collar', 'R_Collar',
                       'L_Shoulder', 'R_Shoulder', 'L_Elbow', 'R_Elbow'])
 
