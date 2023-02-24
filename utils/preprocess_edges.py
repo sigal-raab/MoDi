@@ -11,6 +11,7 @@ from Motion.Quaternions import Quaternions
 from Motion.Animation import transforms_global, positions_global
 from utils.humanml_utils import SampleReader
 import re
+import prepare_modi_data
 
 from utils.data import anim_from_edge_rot_dict, expand_topology_edges
 
@@ -23,9 +24,7 @@ REQUESTED_JOINT_NAMES_1 = ['Head', 'Neck', 'Spine', 'Spine1',
                            'Hips', 'RightUpLeg', 'RightLeg', 'RightFoot', 'LeftUpLeg', 'LeftLeg', 'LeftFoot',
                            ]
 
-REQUESTED_JOINT_NAMES_HML = ['pelvis', 'r_heap', 'l_heap', 'spine_low', 'r_knee', 'l_knee', 'spine_mid', 'r_ankle',
-                             'l_ankle', 'spine_high', 'r_toes', 'l_toes', 'collar', 'r_scapula', 'l_scapula', 'chin',
-                             'r_shoulder', 'l_shoulder', 'r_elbow', 'l_elbow', 'r_hand', 'l_hand']
+REQUESTED_JOINT_NAMES_HML = prepare_modi_data.SMPL_JOINT_NAMES
 # joints like in openpose
 REQUESTED_JOINT_NAMES_2 = ['Head', 'Neck',  # 'Spine', 'Spine1',
                            # 'Spine2', 'RightShoulder',

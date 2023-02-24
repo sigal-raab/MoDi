@@ -21,6 +21,33 @@ from Motion.Animation import animation_from_offsets, Animation, positions_global
 from Motion import BVH
 from Motion.InverseKinematics import animation_from_positions
 
+SMPL_JOINT_NAMES = [ # use this only if humanml use the topology of smpl
+        'Pelvis',  # 0
+        'L_Hip',  # 1
+        'R_Hip',  # 2
+        'Spine1',  # 3
+        'L_Knee',  # 4
+        'R_Knee',  # 5
+        'Spine2',  # 6
+        'L_Ankle',  # 7
+        'R_Ankle',  # 8
+        'Spine3',  # 9
+        'L_Foot',  # 10
+        'R_Foot',  # 11
+        'Neck',  # 12
+        'L_Collar',  # 13
+        'R_Collar',  # 14
+        'Head',  # 15
+        'L_Shoulder',  # 16
+        'R_Shoulder',  # 17
+        'L_Elbow',  # 18
+        'R_Elbow',  # 19
+        'L_Wrist',  # 20
+        'R_Wrist',  # 21
+        'L_Hand',  # 22
+        'R_Hand',  # 23
+    ]
+
 def predefined_offsets():
     # offset is the 1st pose in the 1st motion in the dataset
 
@@ -59,33 +86,6 @@ def predefined_offsets():
 
 
 def main():
-    SMPL_JOINT_NAMES = [ # use this only if humanml use the topology of smpl
-        'Pelvis',  # 0
-        'L_Hip',  # 1
-        'R_Hip',  # 2
-        'Spine1',  # 3
-        'L_Knee',  # 4
-        'R_Knee',  # 5
-        'Spine2',  # 6
-        'L_Ankle',  # 7
-        'R_Ankle',  # 8
-        'Spine3',  # 9
-        'L_Foot',  # 10
-        'R_Foot',  # 11
-        'Neck',  # 12
-        'L_Collar',  # 13
-        'R_Collar',  # 14
-        'Head',  # 15
-        'L_Shoulder',  # 16
-        'R_Shoulder',  # 17
-        'L_Elbow',  # 18
-        'R_Elbow',  # 19
-        'L_Wrist',  # 20
-        'R_Wrist',  # 21
-        'L_Hand',  # 22
-        'R_Hand',  # 23
-    ]
-
 
     data = get_dataset(name='humanml', num_frames=64)
 
