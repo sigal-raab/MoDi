@@ -19,6 +19,7 @@ from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 
 from models.skeleton import SkeletonUnpool
 
+
 class PixelNorm(nn.Module):
     def __init__(self):
         super().__init__()
@@ -48,7 +49,8 @@ class Upsample(nn.Module):
         kernel = make_kernel(kernel, skeleton_traits) * (factor ** skeleton_traits.upfirdn_kernel_exp)
         self.register_buffer('kernel', kernel)
 
-        p = kernel.shape[1] - factor # originally this was shape[0]. However, for an image, shape[0]==shape[1] while for a skeleton we need shape[1]
+        p = kernel.shape[
+                1] - factor  # originally this was shape[0]. However, for an image, shape[0]==shape[1] while for a skeleton we need shape[1]
 
         pad0 = (p + 1) // 2 + factor - 1
         pad1 = p // 2
@@ -104,7 +106,7 @@ class Blur(nn.Module):
 
 class EqualConv(nn.Module):
     def __init__(
-        self, in_channel, out_channel, kernel_size, stride=1, padding=0, bias=True, skeleton_traits=None
+            self, in_channel, out_channel, kernel_size, stride=1, padding=0, bias=True, skeleton_traits=None
     ):
         super().__init__()
 
@@ -113,11 +115,12 @@ class EqualConv(nn.Module):
         self.mask = st.mask(self.weight, out_channel, kernel_size)
 
         norm_axis = st.norm_axis(self.weight)
-        fan_in = self.mask.sum(norm_axis, keepdims=True)  # number of weights that are not zeroed, not considering output channels and output edges
+        fan_in = self.mask.sum(norm_axis,
+                               keepdims=True)  # number of weights that are not zeroed, not considering output channels and output edges
         assert (fan_in[0] == fan_in).all()  # all output channels get same fan_in
         fan_in = fan_in[:1]  # hence we use only one output channel for clearness
         assert (fan_in <= np.prod(np.array(self.mask.shape)[norm_axis])).all()
-        self.scale = nn.Parameter(1 / (fan_in**0.5), requires_grad=False)
+        self.scale = nn.Parameter(1 / (fan_in ** 0.5), requires_grad=False)
 
         self.stride = stride
         self.padding = padding
@@ -127,7 +130,6 @@ class EqualConv(nn.Module):
             self.bias = nn.Parameter(torch.zeros(out_channel))
         else:
             self.bias = None
-
 
     def forward(self, input):
 
@@ -143,7 +145,7 @@ class EqualConv(nn.Module):
             stride=self.stride,
             padding=self.padding,
         )
-        out = st.reshape_output_after_conv(out) # ==> batch, out_channel, out_height, out_width
+        out = st.reshape_output_after_conv(out)  # ==> batch, out_channel, out_height, out_width
 
         # i = torch.ones_like(input)
         # for ii in range(i.shape[-2]):  # each edge's value equals its index, for all samples, channels and frames
@@ -155,10 +157,11 @@ class EqualConv(nn.Module):
 
         return out
 
+
 # this is like an nn.Linear layer, but with a scale that is related to the dimension and a learning rate
 class EqualLinear(nn.Module):
     def __init__(
-        self, in_dim, out_dim, bias=True, bias_init=0, lr_mul=1, activation=None
+            self, in_dim, out_dim, bias=True, bias_init=0, lr_mul=1, activation=None
     ):
         super().__init__()
 
@@ -187,6 +190,7 @@ class EqualLinear(nn.Module):
 
         return out
 
+
 class ScaledLeakyReLU(nn.Module):
     def __init__(self, negative_slope=0.2):
         super().__init__()
@@ -201,20 +205,20 @@ class ScaledLeakyReLU(nn.Module):
         # print('ScaledLeakyReLU')
         # print([out.std(), (out * math.sqrt(2)).std()])
         # print([out.std(), (out * math.sqrt(mult)).std()])
-        return out * math.sqrt(2) # multiply by sqrt(2) to get the std back to 1 (like in Kaiming He initialization)
+        return out * math.sqrt(2)  # multiply by sqrt(2) to get the std back to 1 (like in Kaiming He initialization)
 
 
 class ModulatedConv(nn.Module):
     def __init__(
-        self,
-        in_channel,
-        out_channel,
-        kernel_size,
-        style_dim,
-        demodulate=True,
-        upsample=False,
-        blur_kernel=[1, 3, 3, 1],
-        skeleton_traits=None,
+            self,
+            in_channel,
+            out_channel,
+            kernel_size,
+            style_dim,
+            demodulate=True,
+            upsample=False,
+            blur_kernel=[1, 3, 3, 1],
+            skeleton_traits=None,
     ):
         super().__init__()
 
@@ -244,11 +248,12 @@ class ModulatedConv(nn.Module):
         self.mask = skeleton_traits.mask(self.weight, out_channel, kernel_size)
 
         norm_axis = skeleton_traits.norm_axis(self.weight)
-        fan_in = self.mask.sum(norm_axis, keepdims=True)  # number of weights that are not zeroed, not considering output channels and output joints
+        fan_in = self.mask.sum(norm_axis,
+                               keepdims=True)  # number of weights that are not zeroed, not considering output channels and output joints
         assert (fan_in[0, :] == fan_in[0, 0]).all()
-        fan_in = fan_in[:,:1]
+        fan_in = fan_in[:, :1]
         # assert fan_in <= np.prod(self.mask.shape[skeleton_traits.norm_axis(self.weight)])  # in_channel x weight_volume
-        self.scale = nn.Parameter(1/(fan_in**0.5), requires_grad=False)
+        self.scale = nn.Parameter(1 / (fan_in ** 0.5), requires_grad=False)
 
         self.modulation = EqualLinear(style_dim, in_channel, bias_init=1)
 
@@ -259,12 +264,14 @@ class ModulatedConv(nn.Module):
             self.demod_obj = None
         assert self.demod_obj in ['weights', 'data', None]
 
-    def forward(self, input, style): # input is the learned constant on lowest level call, and layer features on later calls. style is W[i].
+    def forward(self, input,
+                style):  # input is the learned constant on lowest level call, and layer features on later calls. style is W[i].
         batch, in_channel, height, width = input.shape  # e.g.: [16, 256, 1, 4]
         st = self.skeleton_traits
 
         # output size of modulation is [batch, in_channel]
-        style = self.modulation(style).view(batch, 1, in_channel, 1, 1)  # A: Transform incoming W to style, i.e., std per feature.
+        style = self.modulation(style).view(batch, 1, in_channel, 1,
+                                            1)  # A: Transform incoming W to style, i.e., std per feature.
         style = st.reshape_style(style)
 
         weight = self.weight * self.mask
@@ -274,22 +281,25 @@ class ModulatedConv(nn.Module):
         #        if demodulation is NOT applied, scale pushes the std of the output to be defined by style, and removes the effects of the increasing std that happens due to convolutions
         weight = self.scale * weight * style  # mult by fan_in and by predicted std
 
-        if self.demod_obj == 'weights': # scale weights s.t. output features' std will be 1
-            demod = torch.rsqrt(weight.pow(2).sum(st.norm_axis(weight), keepdims=True) + 1e-8)  # scaling factor: 1 / sqrt(sum(w^2)) for kernel and chnnels
+        if self.demod_obj == 'weights':  # scale weights s.t. output features' std will be 1
+            demod = torch.rsqrt(weight.pow(2).sum(st.norm_axis(weight),
+                                                  keepdims=True) + 1e-8)  # scaling factor: 1 / sqrt(sum(w^2)) for kernel and chnnels
             weight = weight * demod
 
         weight = weight.view(
-            (weight.shape[0] * weight.shape[1],) + weight.shape[2:]  # ==>  batch * out_channel_expanded, in_channel, kernel_height, kernel_width
+            (weight.shape[0] * weight.shape[1],) + weight.shape[2:]
+            # ==>  batch * out_channel_expanded, in_channel, kernel_height, kernel_width
         )
 
         weight = st.flip_if_needed(weight)
 
         if self.upsample:
-            input = st.reshape_input_before_transposed_conv(input, batch, width)  # ==>  batch, in_channel, in_height,[ 1,] in_width
+            input = st.reshape_input_before_transposed_conv(input, batch,
+                                                            width)  # ==>  batch, in_channel, in_height,[ 1,] in_width
             # batches become channel-like, so they can 'catch' the mod/demod operation
             input = input.view((1, batch * input.shape[1]) + input.shape[2:])
 
-            weight = weight.view( # undo the view operation from before (keep for similarity with original code)
+            weight = weight.view(  # undo the view operation from before (keep for similarity with original code)
                 (batch, -1) + weight.shape[1:]
             )
             # switch places between in_ch and out_ch
@@ -298,7 +308,7 @@ class ModulatedConv(nn.Module):
                 (batch * in_channel, self.out_channel_expanded) + weight.shape[3:]
             )
 
-            weight= st.reshape_weight_before_transposed_conv(weight, batch, in_channel, self.out_channel)
+            weight = st.reshape_weight_before_transposed_conv(weight, batch, in_channel, self.out_channel)
 
             out = st.transposed_conv_func(input, weight, padding=self.updown_pad, stride=st.updown_stride, groups=batch)
 
@@ -308,13 +318,14 @@ class ModulatedConv(nn.Module):
             # the blur is not making a significant change in size, just dropping the redundant rows/columns (e.g., from (3,9) to (2,8))
             out = st.blur(self.blur, out)
 
-        else: # keep dims
-            input = st.reshape_input_before_conv(input, batch, width)  # ==>  batch, in_channel,[ 1,] in_height, in_width
-            input = input.view((1, batch * input.shape[1]) + input.shape[2:]) # ==> 1, batch*in_ch, ...
+        else:  # keep dims
+            input = st.reshape_input_before_conv(input, batch,
+                                                 width)  # ==>  batch, in_channel,[ 1,] in_height, in_width
+            input = input.view((1, batch * input.shape[1]) + input.shape[2:])  # ==> 1, batch*in_ch, ...
             out = st.conv_func(input, weight, padding=self.fixed_dim_pad, groups=batch)
-            out = st.reshape_output_after_conv(out) # ==> 1, batch*out_ch, height, width
+            out = st.reshape_output_after_conv(out)  # ==> 1, batch*out_ch, height, width
 
-            out = out.view(batch, self.out_channel, out.shape[2], out.shape[-1]) # ==> batch, out_ch, height, width
+            out = out.view(batch, self.out_channel, out.shape[2], out.shape[-1])  # ==> batch, out_ch, height, width
 
         if self.demod_obj == 'data':
             instance_std = out.std((2, 3), keepdim=True)  # batch x ch
@@ -324,7 +335,7 @@ class ModulatedConv(nn.Module):
 
 
 class ConstantInput(nn.Module):
-    def __init__(self, channel, size=(1,4)):
+    def __init__(self, channel, size=(1, 4)):
         super().__init__()
 
         self.input = nn.Parameter(torch.randn(1, channel, size[0], size[1]))
@@ -338,15 +349,15 @@ class ConstantInput(nn.Module):
 
 class StyledConv(nn.Module):
     def __init__(
-        self,
-        in_channel,
-        out_channel,
-        kernel_size,
-        style_dim,
-        upsample=False,
-        blur_kernel=[1, 3, 3, 1],
-        demodulate=True,
-        skeleton_traits=None
+            self,
+            in_channel,
+            out_channel,
+            kernel_size,
+            style_dim,
+            upsample=False,
+            blur_kernel=[1, 3, 3, 1],
+            demodulate=True,
+            skeleton_traits=None
     ):
         super().__init__()
 
@@ -376,17 +387,18 @@ class ToXYZ(nn.Module):
         super().__init__()
 
         self.skel_aware = skeleton_traits.skeleton_aware()
-        if upsample: # this is true when applying the 'skip' branch, for upsampling the 'skip' features from previous hyrarchy level
+        if upsample:  # this is true when applying the 'skip' branch, for upsampling the 'skip' features from previous hyrarchy level
 
             # upsample and unpool are destined for 'skip', which possesses the shape of prev hierarchy level
             self.upsample = skeleton_traits.upsample(blur_kernel)
             if self.skel_aware:
-                self.skeleton_unpool = SkeletonUnpool(pooling_list=skip_pooling_list, output_joints_num=skeleton_traits.larger_n_joints)
+                self.skeleton_unpool = SkeletonUnpool(pooling_list=skip_pooling_list,
+                                                      output_joints_num=skeleton_traits.larger_n_joints)
 
         # conv is destined for the input, which is already upsampled
-        self.conv = ModulatedConv(in_channel, entity.n_channels, 1, style_dim, demodulate=False, skeleton_traits=skeleton_traits)
+        self.conv = ModulatedConv(in_channel, entity.n_channels, 1, style_dim, demodulate=False,
+                                  skeleton_traits=skeleton_traits)
         self.bias = nn.Parameter(torch.zeros(1, entity.n_channels, 1, 1))
-
 
     def forward(self, input, style, skip=None):
         out = self.conv(input, style)
@@ -405,14 +417,14 @@ class ToXYZ(nn.Module):
 
 class Generator(nn.Module):
     def __init__(
-        self,
-        style_dim,
-        n_mlp,
-        blur_kernel=[1, 3, 3, 1],
-        lr_mlp=0.01,
-        traits_class = None,
-        entity = None,
-        n_inplace_conv=1
+            self,
+            style_dim,
+            n_mlp,
+            blur_kernel=[1, 3, 3, 1],
+            lr_mlp=0.01,
+            traits_class=None,
+            entity=None,
+            n_inplace_conv=1
     ):
         super().__init__()
 
@@ -420,7 +432,8 @@ class Generator(nn.Module):
         n_joints = traits_class.n_joints(entity)
         self.n_channels = traits_class.n_channels(entity)
         self.n_frames = traits_class.n_frames(entity)
-        self.size = (n_joints[-1],self.n_frames[-1]) # unlike stylegan2 for images, here target size is a const. not used but kept here for similarity with original code
+        self.size = (n_joints[-1], self.n_frames[
+            -1])  # unlike stylegan2 for images, here target size is a const. not used but kept here for similarity with original code
 
         self.style_dim = style_dim
 
@@ -440,12 +453,13 @@ class Generator(nn.Module):
         self.input = ConstantInput(self.n_channels[0], size=(n_joints[0], self.n_frames[0]))
         # end mapping network and constant
 
-
         skeleton_traits1 = traits_class(entity.parents_list[0], keep_skeletal_dims(n_joints[0]))
         self.conv1 = StyledConv(
-            self.n_channels[0], self.n_channels[0], 3, style_dim, blur_kernel=blur_kernel, skeleton_traits=skeleton_traits1
+            self.n_channels[0], self.n_channels[0], 3, style_dim, blur_kernel=blur_kernel,
+            skeleton_traits=skeleton_traits1
         )
-        self.to_xyz1 = ToXYZ(self.n_channels[0], style_dim, upsample=False, skeleton_traits=skeleton_traits1, entity=entity)
+        self.to_xyz1 = ToXYZ(self.n_channels[0], style_dim, upsample=False, skeleton_traits=skeleton_traits1,
+                             entity=entity)
 
         if traits_class.is_pool():
             n_inplace_conv -= 1  # the pooling block already contains one inplace convolution
@@ -494,7 +508,7 @@ class Generator(nn.Module):
             in_channel = out_channel
 
         # number of style codes to be injected (w height)
-        self.n_latent = self.n_total_conv_layers + 1 #(len(n_joints)-1) * 3  + 2 # 1st level gets latent[0], next each level i gets latent[i*2-1,i*2], motion (i.e. last skip) gets i*2+1
+        self.n_latent = self.n_total_conv_layers + 1  # (len(n_joints)-1) * 3  + 2 # 1st level gets latent[0], next each level i gets latent[i*2-1,i*2], motion (i.e. last skip) gets i*2+1
 
         # keep names of parameters that should have required_grad=False
         self.non_grad_params = []
@@ -503,7 +517,6 @@ class Generator(nn.Module):
                 self.non_grad_params.append(name)
 
         self.text_model = SentenceTransformer('all-MiniLM-L6-v2')
-
 
     def mean_latent(self, n_latent):
         latent_in = torch.randn(
@@ -517,26 +530,27 @@ class Generator(nn.Module):
         return self.style(input)
 
     def forward(
-        self,
-        styles,
-        return_latents=False,
-        inject_index=None,
-        truncation=1,
-        truncation_latent=None,
-        input_is_latent=False,
-        return_sub_motions=False,
+            self,
+            styles,
+            return_latents=False,
+            inject_index=None,
+            truncation=1,
+            truncation_latent=None,
+            input_is_latent=False,
+            return_sub_motions=False,
             texts=None
     ):
         if not texts is None:
             assert len(styles) == len(texts)
             tokens = self.text_model.encode(texts)
-            styles = [torch.cat([styles[i], tokens[i]], 1) for i in range(len(styles))]  # there's probably a better way using vector operations.
+            styles = [torch.cat([styles[i], tokens[i]], 1) for i in
+                      range(len(styles))]  # there's probably a better way using vector operations.
 
         if not input_is_latent:
             # forward the noise through the style pipeline to obtain W
             styles = [self.style(s) for s in styles]
 
-        if truncation < 1: # apply truncation trick if needed. I.e., use a portion of W that is closer to the center
+        if truncation < 1:  # apply truncation trick if needed. I.e., use a portion of W that is closer to the center
             style_t = []
 
             for style in styles:
@@ -571,26 +585,28 @@ class Generator(nn.Module):
 
                 latent = torch.cat([latent, latent2], 1)
 
-        out = self.input(latent)  # duplicate self.constant batch_size times. latent is used only to know batch size. out.shape is [16, 256, 1, 4]j or [16, 64, 6, 16]e
-        out = self.conv1(out, latent[:, 0]) # out.shape is [16, 256, 1, 4]j / [16, 64, 6, 16]e (keep dims)
+        out = self.input(
+            latent)  # duplicate self.constant batch_size times. latent is used only to know batch size. out.shape is [16, 256, 1, 4]j or [16, 64, 6, 16]e
+        out = self.conv1(out, latent[:, 0])  # out.shape is [16, 256, 1, 4]j / [16, 64, 6, 16]e (keep dims)
 
         motion = list()
-        skip = self.to_xyz1(out, latent[:, 1]) # skip.shape is [16, 3, 1, 4]j [16, 4, 6, 16]e
+        skip = self.to_xyz1(out, latent[:, 1])  # skip.shape is [16, 3, 1, 4]j [16, 4, 6, 16]e
         if return_sub_motions:  # return all motions created by all pyramid layers
             motion.append(skip)
 
         i = 1
         for to_xyz in self.to_xyzs:
-            out = self.convs[i-1](out, latent[:, i])      # upsample [16, 64, 12, 32]e, [16, 32, 19, 64]e
+            out = self.convs[i - 1](out, latent[:, i])  # upsample [16, 64, 12, 32]e, [16, 32, 19, 64]e
             for j in range(i, i + self.n_inplace_convs_in_hierarchy):
                 out = self.convs[j](out, latent[:, j])  # keep dims
-            skip = to_xyz(out, latent[:, i + self.n_inplace_convs_in_hierarchy + 1], skip)        # [16, 4, 11, 32]e, [16, 4, 18, 64]e
-            if return_sub_motions: # return all motions created by all pyramid layers
+            skip = to_xyz(out, latent[:, i + self.n_inplace_convs_in_hierarchy + 1],
+                          skip)  # [16, 4, 11, 32]e, [16, 4, 18, 64]e
+            if return_sub_motions:  # return all motions created by all pyramid layers
                 motion.append(skip)
 
             i += self.n_convs_in_hierarchy
 
-        if not return_sub_motions: # return final motion only
+        if not return_sub_motions:  # return final motion only
             motion = skip
 
         if return_latents:
@@ -599,19 +615,20 @@ class Generator(nn.Module):
         else:
             return motion, None, None  # [16, 4, 20, 64]e
 
+
 # encapsulate optional downsample, convolution and non linearity
 # used only by the DISCRIMINATOR
 class ConvLayer(nn.Sequential):
     def __init__(
-        self,
-        in_channel,
-        out_channel,
-        kernel_size,
-        downsample=False,
-        blur_kernel=[1, 3, 3, 1],
-        bias=True,
-        activate=True,
-        skeleton_traits=None,
+            self,
+            in_channel,
+            out_channel,
+            kernel_size,
+            downsample=False,
+            blur_kernel=[1, 3, 3, 1],
+            bias=True,
+            activate=True,
+            skeleton_traits=None,
     ):
         layers = []
 
@@ -624,11 +641,12 @@ class ConvLayer(nn.Sequential):
             pad = skeleton_traits.upfirdn_pad(pad0, pad1)
 
             if (skeleton_traits.need_blur):
-                layers.append(Blur(blur_kernel, pad, skeleton_traits=skeleton_traits)) # not decreasing size, but fixing #frame, e.g., from 64 frames to 65 so conv will work with stride 2.
+                layers.append(Blur(blur_kernel, pad,
+                                   skeleton_traits=skeleton_traits))  # not decreasing size, but fixing #frame, e.g., from 64 frames to 65 so conv will work with stride 2.
             stride = skeleton_traits.updown_stride
             padding = skeleton_traits.updown_pad(kernel_size)
 
-        else: # keep dims
+        else:  # keep dims
             stride = 1
             padding = skeleton_traits.fixed_dim_pad(kernel_size)
 
@@ -666,19 +684,23 @@ class ResBlock(nn.Module):
 
         convs = []
         for _ in range(n_inplace_conv):
-            convs.append(ConvLayer(in_channel, in_channel, 3, skeleton_traits=skeleton_traits_keep_dims))  # keep dims - inplace conv
-        convs.append(ConvLayer(in_channel, out_channel, 3, downsample=True, skeleton_traits=skeleton_traits_for_kernel_3))  # downsample, kernel=3
+            convs.append(ConvLayer(in_channel, in_channel, 3,
+                                   skeleton_traits=skeleton_traits_keep_dims))  # keep dims - inplace conv
+        convs.append(ConvLayer(in_channel, out_channel, 3, downsample=True,
+                               skeleton_traits=skeleton_traits_for_kernel_3))  # downsample, kernel=3
         self.convs = nn.Sequential(*convs)
 
         self.skip = ConvLayer(
-            in_channel, out_channel, 1, downsample=True, activate=False, bias=False, skeleton_traits=skeleton_traits_for_kernel_1 # downsample, kernel=1
+            in_channel, out_channel, 1, downsample=True, activate=False, bias=False,
+            skeleton_traits=skeleton_traits_for_kernel_1  # downsample, kernel=1
         )
 
     def forward(self, input):
         out = self.convs(input)
 
-        skip = self.skip(input) # downscale, kernel=1
-        out = (out + skip) / math.sqrt(2) # division by sqrt(2) for residual blocks is explained in footnote (3) in the stylegan2 paper
+        skip = self.skip(input)  # downscale, kernel=1
+        out = (out + skip) / math.sqrt(
+            2)  # division by sqrt(2) for residual blocks is explained in footnote (3) in the stylegan2 paper
 
         return out
 
@@ -695,12 +717,13 @@ class Discriminator(nn.Module):
         self.n_levels = traits_class.n_levels(entity)
 
         skeleton_traits = traits_class(parents=entity.parents_list[-1], pooling_list=keep_skeletal_dims(n_joints[-1]))
-        convs = [ConvLayer(entity.n_channels, self.n_channels[-1], 1, skeleton_traits=skeleton_traits)] # channel-wise expansion. keep dims. kernel=1
+        convs = [ConvLayer(entity.n_channels, self.n_channels[-1], 1,
+                           skeleton_traits=skeleton_traits)]  # channel-wise expansion. keep dims. kernel=1
 
         in_channel = self.n_channels[-1]
 
-        for i in range(self.n_levels-1, 0, -1):
-            out_channel = self.n_channels[i-1]
+        for i in range(self.n_levels - 1, 0, -1):
+            out_channel = self.n_channels[i - 1]
             skeleton_traits_for_kernel_3 = traits_class(entity.parents_list[i], entity.skeletal_pooling_dist_1[i - 1])
             skeleton_traits_for_kernel_1 = traits_class(entity.parents_list[i], entity.skeletal_pooling_dist_0[i - 1])
 
@@ -717,10 +740,13 @@ class Discriminator(nn.Module):
         self.token_size = 384
 
         skeleton_traits = traits_class(entity.parents_list[0], keep_skeletal_dims(n_joints[0]))
-        self.final_conv = ConvLayer(in_channel + 1, self.n_channels[0], 3, skeleton_traits=skeleton_traits) # channels 257-->256, keep dims, kernel=3
-        self.final_conv_tokenized = ConvLayer(in_channel + self.token_size + 1, self.n_channels[0], 3, skeleton_traits=skeleton_traits) # TODO: rewrite this
+        self.final_conv = ConvLayer(in_channel + 1, self.n_channels[0], 3,
+                                    skeleton_traits=skeleton_traits)  # channels 257-->256, keep dims, kernel=3
+        self.final_conv_tokenized = ConvLayer(in_channel + self.token_size + 1, self.n_channels[0], 3,
+                                              skeleton_traits=skeleton_traits)  # TODO: rewrite this
         self.final_linear = nn.Sequential(
-            EqualLinear(self.n_channels[0] * n_joints[0] * self.n_frames[0], self.n_channels[0], activation='fused_lrelu'),
+            EqualLinear(self.n_channels[0] * n_joints[0] * self.n_frames[0], self.n_channels[0],
+                        activation='fused_lrelu'),
             EqualLinear(self.n_channels[0], 1),
         )
 
@@ -742,12 +768,12 @@ class Discriminator(nn.Module):
             group, -1, self.stddev_feat, channel // self.stddev_feat, height, width
         )
         stddev = torch.sqrt(stddev.var(0, unbiased=False) + 1e-8)
-        stddev = stddev.mean([2, 3, 4], keepdims=True).squeeze(2)   # mean of std across channels, joints, frames
-        stddev = stddev.repeat(group, 1, height, width)             # repeat across batch, joints, frames
-        out = torch.cat([out, stddev], 1)                           # stddev added as an additional channel
+        stddev = stddev.mean([2, 3, 4], keepdims=True).squeeze(2)  # mean of std across channels, joints, frames
+        stddev = stddev.repeat(group, 1, height, width)  # repeat across batch, joints, frames
+        out = torch.cat([out, stddev], 1)  # stddev added as an additional channel
 
         if text is None:
-            out = self.final_conv(out)                                  # fuse the additional stddev channel with existing ones
+            out = self.final_conv(out)  # fuse the additional stddev channel with existing ones
         else:
             token = self.text_model.encode(text)
             out = self.final_conv_tokenized(torch.cat([out, token], 1))
@@ -758,4 +784,4 @@ class Discriminator(nn.Module):
 
 
 def keep_skeletal_dims(n_joints):
-    return {joint_idx:[joint_idx] for joint_idx in range(n_joints)}
+    return {joint_idx: [joint_idx] for joint_idx in range(n_joints)}

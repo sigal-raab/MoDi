@@ -9,8 +9,6 @@ np.set_printoptions(suppress=True)
 from Motion import BVH
 from Motion.Quaternions import Quaternions
 from Motion.Animation import transforms_global, positions_global
-from utils.humanml_utils import SampleReader
-import re
 
 from utils.data import anim_from_edge_rot_dict, expand_topology_edges
 
@@ -21,20 +19,14 @@ REQUESTED_JOINT_NAMES_1 = ['Head', 'Neck', 'Spine', 'Spine1',
                            'Spine2', 'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
                            'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
                            'Hips', 'RightUpLeg', 'RightLeg', 'RightFoot', 'LeftUpLeg', 'LeftLeg', 'LeftFoot',
-                           ]
-
-REQUESTED_JOINT_NAMES_HML = ['pelvis', 'r_heap', 'l_heap', 'spine_low', 'r_knee', 'l_knee', 'spine_mid', 'r_ankle',
-                             'l_ankle', 'spine_high', 'r_toes', 'l_toes', 'collar', 'r_scapula', 'l_scapula', 'chin',
-                             'r_shoulder', 'l_shoulder', 'r_elbow', 'l_elbow', 'r_hand', 'l_hand']
+                          ]
 # joints like in openpose
-REQUESTED_JOINT_NAMES_2 = ['Head', 'Neck',  # 'Spine', 'Spine1',
-                           # 'Spine2', 'RightShoulder',
+REQUESTED_JOINT_NAMES_2 = ['Head', 'Neck', #'Spine', 'Spine1',
+                           #'Spine2', 'RightShoulder',
                            'RightArm', 'RightForeArm', 'RightHand',
                            'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
                            'Hips', 'RightUpLeg', 'RightLeg', 'RightFoot', 'LeftUpLeg', 'LeftLeg', 'LeftFoot',
-                           ]
-
-FRAME_TIME = 1 / 24
+                          ]
 
 
 def fix_joint_names(char, names):
@@ -54,11 +46,10 @@ def clean(dir_list, dir):
     remove = []
     for f_name in dir_list:
         if not osp.isdir(osp.join(dir, f_name)):
-            remove.append(f_name)  # cannot actually remove while iterating the list, because it confuses the iteration
+            remove.append(f_name) # cannot actually remove while iterating the list, because it confuses the iteration
     for r in remove:
         dir_list.remove(r)
     return dir_list
-
 
 def dilute_joints_anim(anim, req_joint_idx, offset_len_mean):
     # we do not want to change inputs that are given as views
@@ -88,8 +79,7 @@ def dilute_joints_anim(anim, req_joint_idx, offset_len_mean):
             anim.parents[idx] = parent
 
             # compute angle using IK
-            anim_transforms = transforms_global(
-                anim)  # need to compute in the inside of the loop because there changes in the loop to anim
+            anim_transforms = transforms_global(anim) # need to compute in the inside of the loop because there changes in the loop to anim
             anim_positions = anim_transforms[:, :, :3, 3]  # look at the translation vector inside a rotation matrix
             anim_rotations = Quaternions.from_transforms(anim_transforms)
             tgt_dirs = anim_positions[:, idx] - anim_positions[:, parent]
@@ -100,8 +90,7 @@ def dilute_joints_anim(anim, req_joint_idx, offset_len_mean):
             src_dirs = positions_global(anim)[:, highest_child] - positions_global(anim)[:, parent]
             src_sums = np.linalg.norm(src_dirs, axis=-1) + 1e-20
             src_dirs = src_dirs / src_sums[:, np.newaxis]
-            assert np.allclose(src_sums, offset_len_mean[highest_child]) and np.allclose(
-                np.linalg.norm(src_dirs, axis=-1), 1)
+            assert np.allclose(src_sums, offset_len_mean[highest_child]) and np.allclose(np.linalg.norm(src_dirs, axis=-1), 1)
 
             angles = np.arccos(np.sum(src_dirs * tgt_dirs, axis=-1).clip(-1, 1))
 
@@ -119,6 +108,7 @@ def dilute_joints_anim(anim, req_joint_idx, offset_len_mean):
 
 
 def dilute_joints_anim_old(anim, req_joint_idx):
+
     # we do not want to change inputs that are given as views
     anim = copy.deepcopy(anim)
 
@@ -130,8 +120,9 @@ def dilute_joints_anim_old(anim, req_joint_idx):
         parent_rot = anim.rotations[:, parent]
         offset = anim.offsets[child]
         position = anim.positions[:, child]
-        while parent not in np.append(req_joint_idx, [-1]):
-            assert idx == 4  # as long as we are using the character Jasper only...
+        while parent not in np.append(req_joint_idx,[-1]):
+            assert idx == 4 # as long as we are using the character Jasper only...
+
 
             # the correct way to remove joints is to run IK between the FK of the parts to remove and the sum of their offsets.
             # say we want to drop one joint, which is joint #1. then we need something like:
@@ -173,8 +164,7 @@ def dilute_joints_anim_file(anim_path, names_req_in_input, char, out_suffix, off
         name, ext = osp.splitext(anim_path)
         anim_path_expanded = name + '_expanded' + ext
         BVH.save(filename=anim_path_expanded, anim=anim_input_exp, names=names_input_exp, frametime=frametime)
-        idx_input_req_in_input_exp = np.nonzero(names_req_in_input[:, None] == names_input_exp)[
-            1]  # indices without expanded joints
+        idx_input_req_in_input_exp = np.nonzero(names_req_in_input[:, None] == names_input_exp)[1] # indices without expanded joints
         sanity_check_joint_loc(anim_input_exp, idx_input_req_in_input_exp, anim_input, idx_req_in_input)
 
     anim_diluted = dilute_joints_anim(anim_input_exp, idx_req_in_input_exp, offset_len_mean_exp)
@@ -258,8 +248,7 @@ def joint_rot_2_edge_rot(anim, anim_path, out_suffix, names, frametime):
             remove = np.append(remove, parent)
             parent = anim.parents[parent]
             if parent != 0:  # pelvis rotation should remain seperated from bones
-                edge_rot[:, joint_idx] *= Quaternions(anim.rotations[:,
-                                                      parent].qs)  # for some reason isinstance(anim.rotations[:, parent], Quaternions) is False
+                edge_rot[:, joint_idx] *= Quaternions(anim.rotations[:, parent].qs)  # for some reason isinstance(anim.rotations[:, parent], Quaternions) is False
             parents[joint_idx] = parent
 
     keep = np.setdiff1d(np.arange(1, n_joints), remove)
@@ -273,8 +262,8 @@ def joint_rot_2_edge_rot(anim, anim_path, out_suffix, names, frametime):
     edge_rot = edge_rot[:, keep]
     names_rot = names[keep_plus_0]
     edge_rot_dict = {'rot_edge_no_root': edge_rot, 'offsets_no_root': anim.offsets[keep],
-                     'parents_with_root': reindexed_parents, 'offset_root': anim.offsets[0],
-                     'pos_root': anim.positions[:, 0], 'rot_root': anim.rotations[:, 0], 'names_with_root': names_rot}
+                          'parents_with_root': reindexed_parents, 'offset_root': anim.offsets[0],
+                          'pos_root': anim.positions[:,0], 'rot_root': anim.rotations[:,0], 'names_with_root': names_rot}
 
     # save results
     name = osp.splitext(anim_path)[0]
@@ -324,7 +313,7 @@ def sanity_check_split(all_clips, anim_joint_rot, clip_len, frametime, mot_dir, 
         anim_edge_rot_clip, names_clip = anim_from_edge_rot_dict(clip)
         assert np.allclose(positions_global(anim_joint_rot_clip),
                            positions_global(anim_edge_rot_clip))
-        sanity_file = osp.join(mot_dir, '{}.bvh'.format(i + 1))
+        sanity_file = osp.join(mot_dir, '{}.bvh'.format(i+1))
         BVH.save(sanity_file, anim_edge_rot_clip, names=names_clip, frametime=frametime)
 
 
@@ -354,7 +343,7 @@ def split_to_fixed_length_clips(anim_edge_rot, anim_dir_path, out_suffix, clip_l
 
     all_motion_names = np.array(all_motion_names)
     for file_idx, motion_name in enumerate(all_motion_names):
-        all_motion_names[file_idx] = osp.relpath(motion_name, root_path)  # remove root_path from name
+        all_motion_names[file_idx] = osp.relpath(motion_name, root_path) # remove root_path from name
 
     if DEBUG:
         sanity_check_split(all_clips, anim_joint_rot, clip_len, frametime, mot_dir, divisor)
@@ -362,101 +351,97 @@ def split_to_fixed_length_clips(anim_edge_rot, anim_dir_path, out_suffix, clip_l
     return all_clips, all_motion_names
 
 
-def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, stride, out_dir):
-    anim_file_names = [name for name in os.listdir(data_root) if re.match(r'M?[0-9]{6}\.npy', name)]
+def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, stride):
+    character_names = os.listdir(data_root)
+    character_names = clean(character_names, data_root)
 
-    requested_joint_names = np.array(REQUESTED_JOINT_NAMES_HML)
+    requested_joint_names = np.array(REQUESTED_JOINT_NAMES_1)
     requested_joint_names = np.array(requested_joint_names)
-
-    if dilute_intern_joints:
-        offset_len_mean, offset_len_std = 10, 1
-    else:
-        offset_len_mean = offset_len_std = None
-
-    animation_reader = SampleReader()
 
     anim_edges_split_all_chars = None
     names_split_all_chars = np.empty(0)
 
-    for anim_idx, anim_name in enumerate(anim_file_names):
-        anim_file_path = os.path.join(data_root, anim_name)
+    for char in character_names:
+        animation_names, char_dir = get_animation_names(char, data_root)
 
-        frametime = FRAME_TIME
-        names_input = requested_joint_names
-        anim_input = animation_reader.open_as_animation(anim_file_path)
-        names_input = np.array(names_input)
-
-        names_req_in_input = requested_joint_names
-
-        idx_req_in_input = [i for i in range(len(requested_joint_names))]  # since our data was already formatted
-
-        ###
-        # expand topology: add dummy vertices where a joint has more than one child
-        ###
-        anim_input_exp, idx_req_in_input_exp, names_input_exp, offset_len_mean_exp = \
-            expand_topology_edges(anim_input, idx_req_in_input, names_input, offset_len_mean, nearest_joint_ratio=1)
-        sanity_check_expand_topology(anim_input, anim_input_exp, anim_file_path, frametime, idx_req_in_input,
-                                     names_input_exp, names_req_in_input)
-
-        ###
-        # remove joints that are not required for the algorithm
-        ###
-        anim_diluted = dilute_joints_anim(anim_input_exp, idx_req_in_input_exp, offset_len_mean_exp)
-        names_diluted = names_input_exp[idx_req_in_input_exp]
-        sanity_check_dilute_joints(anim_diluted, anim_input, idx_req_in_input, names_diluted, names_req_in_input)
-        name, ext = osp.splitext(anim_file_path)
-        anim_path_diluted = name + out_suffix + ext
-        # TODO: we don't save BVH v
-        # BVH.save(filename=anim_path_diluted, anim=anim_diluted, names=names_diluted, frametime=frametime)
-
-        ###
-        # convert joint rotations to edge rotations
-        ###
-        anim_edge_rot = joint_rot_2_edge_rot(anim_diluted, anim_file_path, out_suffix, names_diluted, frametime)
-
-        ###
-        # split the clip to a set of fixed length clips
-        ###
-        # TODO: remove directory hierarchy dependency from the split function (root and anim_dir are the same for us)
-        anim_edges_split, file_names = \
-            split_to_fixed_length_clips(anim_edge_rot, data_root, out_suffix, clip_len=clip_len, stride=stride,
-                                        root_path=data_root, anim_joint_rot=anim_diluted, frametime=frametime)
-
-        if anim_edges_split_all_chars is None:
-            anim_edges_split_all_chars = anim_edges_split
+        # compute mean bone length for diluted topology, for all motions of this character
+        if dilute_intern_joints:
+            offset_len_mean, offset_len_std = compute_mean_bone_length(animation_names, char_dir)
         else:
-            anim_edges_split_all_chars = np.append(anim_edges_split_all_chars, anim_edges_split)
-        names_split_all_chars = np.append(names_split_all_chars, file_names)
+            offset_len_mean = offset_len_std = None
 
-        if anim_idx % 100 == 0:
-            print('{}/{} Done'.format(anim_idx, len(anim_file_names)))
+        for anim_idx, anim_name in enumerate(animation_names):
+            anim_dir_path = osp.join(char_dir, anim_name)
+            anim_file_path = os.path.join(anim_dir_path, anim_name + '.bvh')
+
+            anim_input, names_input, frametime = BVH.load(anim_file_path)
+            names_input = np.array(names_input)
+
+            names_input_fixed = fix_joint_names(char, names_input)
+            names_req_in_input = requested_joint_names
+
+            # make sure all requested names exist in the input anim
+            assert np.isin(requested_joint_names, names_input_fixed).all()
+
+            # indices where 'requested' appear in 'cur'
+            idx_req_in_input = idx_list1_in_list2(names_req_in_input, names_input_fixed) #  np.nonzero(requested_joint_names[:, None] == names_input_fixed)[1]
+
+            ###
+            # expand topology: add dummy vertices where a joint has more than one child
+            ###
+            anim_input_exp, idx_req_in_input_exp, names_input_exp, offset_len_mean_exp = \
+                expand_topology_edges(anim_input, idx_req_in_input, names_input_fixed, offset_len_mean, nearest_joint_ratio=1)
+            sanity_check_expand_topology(anim_input, anim_input_exp, anim_file_path, frametime, idx_req_in_input,
+                                         names_input_exp, names_req_in_input)
+
+            ###
+            # remove joints that are not required for the algorithm
+            ###
+            anim_diluted = dilute_joints_anim(anim_input_exp, idx_req_in_input_exp, offset_len_mean_exp)
+            names_diluted = names_input_exp[idx_req_in_input_exp]
+            sanity_check_dilute_joints(anim_diluted, anim_input, idx_req_in_input, names_diluted, names_req_in_input)
+            name, ext = osp.splitext(anim_file_path)
+            anim_path_diluted = name + out_suffix + ext
+            BVH.save(filename=anim_path_diluted, anim=anim_diluted, names=names_diluted, frametime=frametime)
+
+            ###
+            # convert joint rotations to edge rotations
+            ###
+            anim_edge_rot = joint_rot_2_edge_rot(anim_diluted, anim_file_path, out_suffix, names_diluted, frametime)
+
+            ###
+            # split the clip to a set of fixed length clips
+            ###
+            anim_edges_split, file_names = \
+                split_to_fixed_length_clips(anim_edge_rot, anim_dir_path, out_suffix, clip_len=clip_len, stride=stride,
+                                            root_path=data_root, anim_joint_rot=anim_diluted, frametime=frametime)
+
+            if anim_edges_split_all_chars is None:
+                anim_edges_split_all_chars = anim_edges_split
+            else:
+                anim_edges_split_all_chars = np.append(anim_edges_split_all_chars, anim_edges_split)
+            names_split_all_chars = np.append(names_split_all_chars, file_names)
+
+            if anim_idx % 100 == 0:
+                print('{}/{} Done'.format(anim_idx, len(animation_names)))
     ###
     # save final files
     ###
-    if not os.path.exists(out_dir):
-        os.mkdir(out_dir)
-    anim_edges_split_all_chars_file_name = osp.join(out_dir, 'edge_rot' + out_suffix + '.npy')
+    anim_edges_split_all_chars_file_name = osp.join(data_root, 'edge_rot'+out_suffix+'.npy')
     np.save(anim_edges_split_all_chars_file_name, anim_edges_split_all_chars)
-    names_split_all_chars_file_name = osp.join(out_dir, 'file_names' + out_suffix + '.txt')
+    names_split_all_chars_file_name = osp.join(data_root, 'file_names'+out_suffix+'.txt')
     np.savetxt(names_split_all_chars_file_name, names_split_all_chars, fmt='%s')
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="Preproces bvh files such that they can be used as input motions with edge rotation data.")
+    parser = argparse.ArgumentParser(description="Preproces bvh files such that they can be used as input motions with edge rotation data.")
 
     parser.add_argument("--data_root", type=str, help="Base folder for all characters.", required=True)
     parser.add_argument("--out_suffix", type=str, help="Suffix for created files.")
-    parser.add_argument("--clip_len", type=int, default=64,
-                        help="Length (in frames) of sub-clips to be used by the network.")
-    parser.add_argument("--stride", type=int, default=32,
-                        help="Stride size between the beginning of one clip to the beginning of the following one.")
-    parser.add_argument("--out_dir", type=str, help="Out path for created files.")
+    parser.add_argument("--clip_len", type=int, default=64, help="Length (in frames) of sub-clips to be used by the network.")
+    parser.add_argument("--stride", type=int, default=32, help="Stride size between the beginning of one clip to the beginning of the following one.")
     args = parser.parse_args()
-
-    # anim_input, names_input, frametime = BVH.load(r"D:\Documents\University\DeepGraphicsWorkshop\git\MoDi\results\generated_30441.bvh")
 
     if args.out_suffix is None:
         args.out_suffix = '_joints_1_frames_' + str(args.clip_len)
-    preprocess_edge_rot(args.data_root, args.out_suffix, dilute_intern_joints=False, clip_len=args.clip_len,
-                        stride=args.stride, out_dir=args.out_dir)
+    preprocess_edge_rot(args.data_root, args.out_suffix, dilute_intern_joints=False, clip_len=args.clip_len, stride=args.stride)

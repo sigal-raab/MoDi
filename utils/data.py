@@ -53,12 +53,12 @@ class humanml_joints(openpose_joints):
         self.oredered_joint_names = \
             np.array(['pelvis', 'r_heap', 'l_heap', 'spine_low', 'r_knee', 'l_knee', 'spine_mid', 'r_ankle', 'l_ankle',
                       'spine_high', 'r_toes', 'l_toes', 'collar', 'r_scapula', 'l_scapula', 'chin', 'r_shoulder',
-                      'l_shoulder', 'r_elbow', 'l_elbow']
+                      'l_shoulder', 'r_elbow', 'l_elbow', 'r_hand', 'l_hand']
 )
         self.parent_joint_names = \
             np.array([np.nan, 'pelvis', 'pelvis', 'pelvis', 'r_heap', 'l_heap', 'spine_low', 'r_knee', 'l_knee',
                       'spine_mid', 'r_ankle', 'l_ankle', 'spine_high', 'spine_high', 'spine_high', 'collar', 'r_scapula',
-                      'l_scapula', 'r_shoulder', 'l_shoulder']
+                      'l_scapula', 'r_shoulder', 'l_shoulder', 'r_elbow', 'l_elbow']
 )
 
 

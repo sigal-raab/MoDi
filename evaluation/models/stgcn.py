@@ -65,7 +65,7 @@ class STGCN(nn.Module):
         # initialize parameters for edge importance weighting
         if edge_importance_weighting:
             self.edge_importance = nn.ParameterList([
-                nn.Parameter(torch.ones(self.A.size()))
+                nn.Parameter(torch.ones(self.A.length()))
                 for i in self.st_gcn_networks
             ])
         else:
@@ -83,7 +83,7 @@ class STGCN(nn.Module):
         x = batch["x"].permute(0, 2, 3, 1).unsqueeze(4).contiguous()
 
         # data normalization
-        N, C, T, V, M = x.size()
+        N, C, T, V, M = x.length()
         x = x.permute(0, 4, 3, 1, 2).contiguous()
         x = x.view(N * M, V * C, T)
         x = self.data_bn(x)
@@ -101,7 +101,7 @@ class STGCN(nn.Module):
         # batch["features"] = features
         
         # global pooling
-        x = F.avg_pool2d(x, x.size()[2:])
+        x = F.avg_pool2d(x, x.length()[2:])
         x = x.view(N, M, -1, 1, 1).mean(dim=1)
 
         # features
@@ -109,7 +109,7 @@ class STGCN(nn.Module):
         
         # prediction
         x = self.fcn(x)
-        x = x.view(x.size(0), -1)
+        x = x.view(x.length(0), -1)
         batch["yhat"] = x
         return batch
 

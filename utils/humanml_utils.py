@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 from utils.rotation_conversions import rotation_6d_to_matrix, matrix_to_quaternion
-
+from Motion.Animation import Animation
+REFERENCE_ANIMATION_PATH = r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\HumanML3D\new_joint_vecs\000000.npy"
+IDENTITY_ROTATION = [1., 0., 0., 0., 1., 0.]
 
 class HumanMLFrame:
     def __init__(self, sample_vec):
@@ -22,11 +24,13 @@ class HumanMLFrame:
 
     @property
     def ric_data(self):
-        return np.reshape(self.data_vec[4:67], (self.joints_num - 1, 3))
+        return np.concatenate([np.array([0, self.root_y, 0]).reshape((1, 3)),
+                               np.reshape(self.data_vec[4:67], (self.joints_num - 1, 3))], axis=0)
 
     @property
     def rot_data(self):
-        return np.reshape(self.data_vec[67:193], (self.joints_num - 1, 6))
+        return np.concatenate([np.array(IDENTITY_ROTATION).reshape((1, 6)),
+                               np.reshape(self.data_vec[67:193], (self.joints_num - 1, 6))], axis=0)
 
     def get_rot_data_quat(self):
         """returns the expected torch tensor"""
@@ -51,10 +55,82 @@ class HumanMLSample:
             self.path = path + sample_id + '.npy'
         self.joints_num = 22
         self.samples_vec = np.load(self.path)
-        self.frames_num = self.samples_vec.shape[0]
+        self._frames_num = self.samples_vec.shape[0]
 
     def get_frame(self, frame_num):
-        return HumanMLSample(self.samples_vec[frame_num])
+        return HumanMLFrame(self.samples_vec[frame_num])
+
+    def __getitem__(self, key):
+        return self.get_frame(key)
+
+    def __iter__(self):
+        self.cur_frame_num = 0
+        return self
+
+    def __next__(self):
+        if self.cur_frame_num < self.length:
+            frame = self.get_frame(self.cur_frame_num)
+            self.cur_frame_num += 1
+            return frame
+        else:
+            raise StopIteration
+
+    @property
+    def length(self):
+        return self._frames_num
+
+    @property
+    def root_rot_velocity(self):
+        return self.samples_vec[:, 0]
+
+    @property
+    def root_linear_velocity(self):
+        return self.samples_vec[:, 1:3]
+
+    @property
+    def root_y(self):
+        return self.samples_vec[:, 3]
+
+    @property
+    def ric_data(self):
+        return np.concatenate([np.stack([np.zeros_like(self.root_y), self.root_y, np.zeros_like(self.root_y)], axis=1).reshape((-1, 1, 3)),
+                               np.reshape(self.samples_vec[:, 4:67], (-1, self.joints_num - 1, 3))], axis=1)
+
+    @property
+    def rot_data(self):
+        return np.concatenate([np.array(IDENTITY_ROTATION * self.length).reshape((-1, 1, 6)),
+                               np.reshape(self.samples_vec[:, 67:193], (-1, self.joints_num - 1, 6))], axis=1)
+
+    def get_rot_data_quat(self):
+        """returns the expected torch tensor"""
+        return matrix_to_quaternion(rotation_6d_to_matrix(torch.from_numpy(self.rot_data)))
+
+    @property
+    def foot_contact(self):
+        return self.samples_vec[:, 259:263]
+
+    def get_foot_contact(self):
+        """returns the expected torch tensor"""
+        return torch.from_numpy(self.foot_contact)
+
+
+class SampleReader:
+    def __init__(self):
+        self.reference_sample = HumanMLSample(REFERENCE_ANIMATION_PATH)
+        self.reference_rot = self.reference_sample[0].get_rot_data_quat()
+        self.reference_ric = self.reference_sample[0].ric_data
+
+    def open_as_animation(self, path):
+        sample = HumanMLSample(path)
+        # TODO: Verify that this is the correct way to subtract the base pose
+        # rotations = torch.tensor([frame.get_rot_data_quat() - self.reference_rot for frame in sample])
+        # positions = torch.tensor([frame.ric_data - self.reference_ric for frame in sample])
+        rotations = sample.get_rot_data_quat() - self.reference_rot
+        positions = sample.ric_data - self.reference_ric
+        orients = self.reference_rot
+        offsets = self.reference_ric
+        parents = [-1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14, 16, 17, 18, 19]
+        return Animation(rotations, positions, orients, offsets, parents)
 
 
 class HumanMLConversions:
