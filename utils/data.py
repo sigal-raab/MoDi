@@ -11,6 +11,7 @@ from Motion.Animation import Animation
 
 import torch  # used for foot contact
 from utils.foot import get_foot_contact
+from utils import humanml_utils
 import prepare_modi_data
 
 foot_names_openpose = ['LeftFoot', 'RightFoot']
@@ -52,7 +53,7 @@ class humanml_joints(openpose_joints):
         super().__init__()
 
         self.oredered_joint_names = \
-            np.array(prepare_modi_data.SMPL_JOINT_NAMES)
+            np.array(humanml_utils.HUMANML_JOINT_NAMES)
         self.parent_joint_names = \
             np.array([np.nan, 'Pelvis', 'Pelvis', 'Pelvis', 'L_Hip', 'R_Hip', 'Spine1', 'L_Knee', 'R_Knee',
                       'Spine2', 'L_Ankle', 'R_Ankle', 'Spine3', 'Spine3', 'Spine3', 'Neck', 'L_Collar', 'R_Collar',

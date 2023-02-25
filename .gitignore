@@ -1,4 +1,5 @@
 Test_data
 results
 data
-*/__pycache__/
+preprocessed_data
+*__pycache__/

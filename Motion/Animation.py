@@ -675,7 +675,7 @@ def offsets_from_positions(positions, parents):
     return offsets
 
 
-def animation_from_offsets(offsets, parents, shape=None):
+def animation_from_offsets(offsets, parents, orients=None, shape=None):
 
     sorted_order = AnimationStructure.get_sorted_order(parents)
     offsets = offsets[sorted_order]
@@ -684,13 +684,23 @@ def animation_from_offsets(offsets, parents, shape=None):
     parents = reindex(parents, sorted_order)
 
     if shape is None:
-        shape=(1, offsets.shape[0])
-    orients = Quaternions.id(0)
+        shape = (1, offsets.shape[0])
+    if orients is None:
+        orients = Quaternions.id(offsets.shape[0])
     anim_positions = np.repeat(offsets[np.newaxis], shape[0], axis=0)
     rotations = Quaternions.id((shape[0], shape[1]))
 
     anim = Animation(rotations, anim_positions, orients, offsets, parents)
     return anim, sorted_order, parents
+
+
+def get_sorted_order(sorted_order, parent_out_idx, parent_in_idx, children):
+    out_idx = parent_out_idx  # return same index in case there are no children
+    for child in children[parent_in_idx]:
+        out_idx = out_idx + 1
+        sorted_order[out_idx] = child
+        sorted_order, out_idx = get_sorted_order(sorted_order, out_idx, child, children)
+    return sorted_order, out_idx
 
 
 def animation_from_positions(positions, parents):
@@ -700,7 +710,7 @@ def animation_from_positions(positions, parents):
     1. the rotated direction of the parent pose is not towards the joint
     2. There is no way to change an end site pose (as far as I [SR] know)
     '''
-    sorted_order = get_sorted_order(parents)
+    sorted_order = AnimationStructure.get_sorted_order(parents)
     positions = positions[:, sorted_order]
     # reorder parents
     sorted_order_inversed = {num: i for i, num in enumerate(sorted_order)}

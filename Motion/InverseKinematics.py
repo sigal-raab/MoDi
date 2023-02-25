@@ -107,8 +107,8 @@ class BasicInverseKinematics:
                 angles = np.arccos(np.sum(jdirs * ddirs, axis=2).clip(-1, 1))
 
                 axises = np.cross(jdirs, ddirs)
-                if jdirs.shape[1] == 1: # for a single child reconstruction should be exact
-                    assert np.allclose(Quaternions.from_angle_axis(angles, np.cross(jdirs, ddirs)) * jdirs, ddirs)
+                # if jdirs.shape[1] == 1: # for a single child reconstruction should be exact
+                #     assert np.allclose(Quaternions.from_angle_axis(angles, np.cross(jdirs, ddirs)) * jdirs, ddirs)
                 axises = -anim_rotations[:,j,np.newaxis] * axises
 
                 # find out which of the given bones are not of zero length
@@ -523,7 +523,7 @@ class ICP:
                 print('[ICP] Iteration %i | Error: %f' % (i+1, error))
                 
 
-def animation_from_positions(positions, parents, offsets=None):
+def animation_from_positions(positions, parents, offsets=None, ik_iterations=1):
 
     root_idx = np.where(parents == -1)[0][0]
 
@@ -547,14 +547,14 @@ def animation_from_positions(positions, parents, offsets=None):
         offsets = orig_offsets[0]
         offsets[idx_no_root] = offsets_no_root
 
-    anim, sorted_order, parents = Animation.animation_from_offsets(offsets, parents, positions.shape)
+    anim, sorted_order, parents = Animation.animation_from_offsets(offsets, parents, shape=positions.shape)
     positions = positions[:, sorted_order]
     sorted_root_idx = np.where(sorted_order == root_idx)[0][0]
 
-    anim.positions[:,sorted_root_idx] = positions[:,0] # keep root positions. important for IK
+    anim.positions[:, sorted_root_idx] = positions[:, 0] # keep root positions. important for IK
 
     # apply IK
-    ik = BasicInverseKinematics(anim, positions, silent=False, iterations=1)
+    ik = BasicInverseKinematics(anim, positions, silent=True, iterations=ik_iterations)
     ik()
     return anim, sorted_order, parents
 

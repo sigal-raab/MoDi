@@ -9,7 +9,7 @@ np.set_printoptions(suppress=True)
 from Motion import BVH
 from Motion.Quaternions import Quaternions
 from Motion.Animation import transforms_global, positions_global
-from utils.humanml_utils import SampleReader
+from utils.humanml_utils import SampleReader, HUMANML_JOINT_NAMES
 import re
 import prepare_modi_data
 
@@ -24,7 +24,7 @@ REQUESTED_JOINT_NAMES_1 = ['Head', 'Neck', 'Spine', 'Spine1',
                            'Hips', 'RightUpLeg', 'RightLeg', 'RightFoot', 'LeftUpLeg', 'LeftLeg', 'LeftFoot',
                            ]
 
-REQUESTED_JOINT_NAMES_HML = prepare_modi_data.SMPL_JOINT_NAMES
+REQUESTED_JOINT_NAMES_HML = HUMANML_JOINT_NAMES
 # joints like in openpose
 REQUESTED_JOINT_NAMES_2 = ['Head', 'Neck',  # 'Spine', 'Spine1',
                            # 'Spine2', 'RightShoulder',
@@ -184,7 +184,7 @@ def dilute_joints_anim_file(anim_path, names_req_in_input, char, out_suffix, off
         sanity_check_joint_loc(anim_diluted, idx_req_in_diluted, anim_input, idx_req_in_input)
 
     name, ext = osp.splitext(anim_path)
-    anim_path_diluted = name + out_suffix + ext
+    anim_path_diluted = name + out_suffix + '.bvh'
 
     BVH.save(filename=anim_path_diluted, anim=anim_diluted, names=names_diluted, frametime=frametime)
 
@@ -362,13 +362,15 @@ def split_to_fixed_length_clips(anim_edge_rot, anim_dir_path, out_suffix, clip_l
 
 
 def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, stride, out_dir):
-    anim_file_names = [name for name in os.listdir(data_root) if re.match(r'M?[0-9]{6}\.npy', name)]
+    anim_file_names = [name for name in os.listdir(data_root) if os.path.isfile(os.path.join(data_root, name))]
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
 
     requested_joint_names = np.array(REQUESTED_JOINT_NAMES_HML)
     requested_joint_names = np.array(requested_joint_names)
 
     if dilute_intern_joints:
-        offset_len_mean, offset_len_std = 10, 1
+        offset_len_mean, offset_len_std = 10, 1  # dummy values
     else:
         offset_len_mean = offset_len_std = None
 
@@ -378,11 +380,12 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
     names_split_all_chars = np.empty(0)
 
     for anim_idx, anim_name in enumerate(anim_file_names):
-        anim_file_path = os.path.join(data_root, anim_name)
+        anim_src_file_path = os.path.join(data_root, anim_name)
+        anim_file_path = os.path.join(out_dir, anim_name)
 
         frametime = FRAME_TIME
         names_input = requested_joint_names
-        anim_input = animation_reader.open_as_animation(anim_file_path)
+        anim_input, anim_from_pos_order, anim_from_pos_parents = animation_reader.open_as_animation(anim_src_file_path)
         names_input = np.array(names_input)
 
         names_req_in_input = requested_joint_names
@@ -404,9 +407,8 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
         names_diluted = names_input_exp[idx_req_in_input_exp]
         sanity_check_dilute_joints(anim_diluted, anim_input, idx_req_in_input, names_diluted, names_req_in_input)
         name, ext = osp.splitext(anim_file_path)
-        anim_path_diluted = name + out_suffix + ext
-        # TODO: we don't save BVH v
-        # BVH.save(filename=anim_path_diluted, anim=anim_diluted, names=names_diluted, frametime=frametime)
+        anim_path_diluted = name + out_suffix + '.bvh'
+        BVH.save(filename=anim_path_diluted, anim=anim_diluted, names=names_diluted, frametime=frametime)
 
         ###
         # convert joint rotations to edge rotations
@@ -416,10 +418,9 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
         ###
         # split the clip to a set of fixed length clips
         ###
-        # TODO: remove directory hierarchy dependency from the split function (root and anim_dir are the same for us)
         anim_edges_split, file_names = \
-            split_to_fixed_length_clips(anim_edge_rot, data_root, out_suffix, clip_len=clip_len, stride=stride,
-                                        root_path=data_root, anim_joint_rot=anim_diluted, frametime=frametime)
+            split_to_fixed_length_clips(anim_edge_rot, out_dir, out_suffix, clip_len=clip_len, stride=stride,
+                                        root_path=out_dir, anim_joint_rot=anim_diluted, frametime=frametime)
 
         if anim_edges_split_all_chars is None:
             anim_edges_split_all_chars = anim_edges_split
@@ -432,8 +433,6 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
     ###
     # save final files
     ###
-    if not os.path.exists(out_dir):
-        os.mkdir(out_dir)
     anim_edges_split_all_chars_file_name = osp.join(out_dir, 'edge_rot' + out_suffix + '.npy')
     np.save(anim_edges_split_all_chars_file_name, anim_edges_split_all_chars)
     names_split_all_chars_file_name = osp.join(out_dir, 'file_names' + out_suffix + '.txt')

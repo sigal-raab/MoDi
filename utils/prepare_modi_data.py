@@ -20,33 +20,8 @@ from Motion.Quaternions import Quaternions
 from Motion.Animation import animation_from_offsets, Animation, positions_global
 from Motion import BVH
 from Motion.InverseKinematics import animation_from_positions
+import humanml_utils
 
-SMPL_JOINT_NAMES = [ # use this only if humanml use the topology of smpl
-        'Pelvis',  # 0
-        'L_Hip',  # 1
-        'R_Hip',  # 2
-        'Spine1',  # 3
-        'L_Knee',  # 4
-        'R_Knee',  # 5
-        'Spine2',  # 6
-        'L_Ankle',  # 7
-        'R_Ankle',  # 8
-        'Spine3',  # 9
-        'L_Foot',  # 10
-        'R_Foot',  # 11
-        'Neck',  # 12
-        'L_Collar',  # 13
-        'R_Collar',  # 14
-        'Head',  # 15
-        'L_Shoulder',  # 16
-        'R_Shoulder',  # 17
-        'L_Elbow',  # 18
-        'R_Elbow',  # 19
-        'L_Wrist',  # 20
-        'R_Wrist',  # 21
-        'L_Hand',  # 22
-        'R_Hand',  # 23
-    ]
 
 def predefined_offsets():
     # offset is the 1st pose in the 1st motion in the dataset
@@ -84,23 +59,24 @@ def predefined_offsets():
 
     return offsets
 
-
 def main():
 
-    data = get_dataset(name='humanml', num_frames=64)
-
-    one_motion = data[0]['inp'].unsqueeze(0)
+    # data = get_dataset(name='humanml', num_frames=64)
+    #
+    # one_motion = data[0]['inp'].unsqueeze(0)
 
     #######################################################################################
     # For HumanML3D you need to prepare a tensor similar to the following one
     #######################################################################################
-    locations = foo(one_motion) # some code to extract locations out of the humanml format
-    parents = [-1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14, 16, 17, 18, 19, 20, 21]  # true only if humanml are using smpl topology
+    sample0 = humanml_utils.HumanMLPosSample(r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\HumanML3D\new_joints\000000.npy")
+    sample = humanml_utils.HumanMLPosSample(r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\HumanML3D\new_joints\000000.npy")
+    locations = sample.positions
+    parents = np.array([-1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14, 16, 17, 18, 19])  # true only if humanml are using smpl topology
 
-    if True:  # change to False in order to take the offsets of a new dataset or change the motion on which the offsets are based
+    if False:  # change to False in order to take the offsets of a new dataset or change the motion on which the offsets are based
         offsets = predefined_offsets()['humanml']
     else:
-        loc_for_offsets = locations[0]
+        loc_for_offsets = sample0.positions[0]
         offsets = loc_for_offsets - loc_for_offsets[parents]
         offsets[0] = loc_for_offsets[0]
 
@@ -110,12 +86,13 @@ def main():
     # convert rotations to be relative to offset angle
     new_anim, anim_from_pos_order, anim_from_pos_parents = animation_from_positions(positions=locations, parents=parents, offsets=offsets)
 
+    test_path = r"D:\Documents\University\DeepGraphicsWorkshop\git\MoDi\Test_data"
     # save bvh files
-    BVH.save(os.path.expanduser('~/tmp/anim_offsets.bvh'), offset_anim, names=np.array(SMPL_JOINT_NAMES)[sorted_order])
+    BVH.save(os.path.join(test_path, 'anim_offsets.bvh'), offset_anim, names=np.array(SMPL_JOINT_NAMES)[sorted_order])
     # sanity check: display bvh of new motion, compared to bvh of original motion with no fixed offsets. make sure they look identical.
-    BVH.save(os.path.expanduser('~/tmp/anim_new.bvh'), new_anim, names=np.array(SMPL_JOINT_NAMES)[anim_from_pos_order])
+    BVH.save(os.path.join(test_path, 'anim_new.bvh'), new_anim, names=np.array(SMPL_JOINT_NAMES)[anim_from_pos_order])
     smpl_anim, anim_from_pos_order, anim_from_pos_parents = animation_from_positions(positions=locations, parents=parents)
-    BVH.save(os.path.expanduser('~/tmp/anim_smpl.bvh'), smpl_anim, names=np.array(SMPL_JOINT_NAMES)[anim_from_pos_order])
+    BVH.save(os.path.join(test_path, 'anim_smpl.bvh'), smpl_anim, names=np.array(SMPL_JOINT_NAMES)[anim_from_pos_order])
 
     #######################################################################################
     # The next stage is to follow the steps in preprocess_edges.py like expand_topology_edges etc.
