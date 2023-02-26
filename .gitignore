@@ -2,4 +2,5 @@ Test_data
 results
 data
 preprocessed_data
+train_output
 *__pycache__/

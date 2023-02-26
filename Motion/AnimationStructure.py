@@ -48,10 +48,10 @@ def load_from_maya(root):
         parents.append(par)
         
         children = [c for c in j.getChildren() if
-                isinstance(c, pm.nt.Transform) and
-            not isinstance(c, pm.nt.Constraint) and
-            not any(pm.listRelatives(c, s=True)) and 
-            (any(pm.listRelatives(c, ad=True, ap=False, type='joint')) or isinstance(c, pm.nt.Joint))]
+                    isinstance(c, pm.nt.Transform) and
+                    not isinstance(c, pm.nt.Constraint) and
+                    not any(pm.listRelatives(c, s=True)) and
+                    (any(pm.listRelatives(c, ad=True, ap=False, type='joint')) or isinstance(c, pm.nt.Joint))]
         
         map(lambda c: unload_joint(c, parents, id), children)
 

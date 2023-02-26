@@ -220,7 +220,7 @@ def motion2bvh_rot(motion_data, bvh_file_path, type, edge_rot_dict_general=None)
 
     # from this point input is a list of edge_rot_dicts
     for i, (edge_rot_dict, frame_mult) in enumerate(zip(edge_rot_dicts, frame_mults)):
-        anim, names = anim_from_edge_rot_dict(edge_rot_dict, root_name='Hips')
+        anim, names = anim_from_edge_rot_dict(edge_rot_dict, root_name='Pelvis')
         if is_sub_motion:
             suffix = '_{}x{}'.format(edge_rot_dict['rot_edge_no_root'].shape[1]+1, int(edge_rot_dict['rot_edge_no_root'].shape[0]/frame_mult))
         elif type == 'edit':

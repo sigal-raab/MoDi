@@ -1,6 +1,7 @@
 import os
 
-SMPL_DATA_PATH = "/home/{}/repos/ACTOR/models/smpl".format(os.environ["USER"])
+# SMPL_DATA_PATH = "/home/{}/repos/ACTOR/models/smpl".format(os.environ["USER"])
+SMPL_DATA_PATH = r"D:\Documents\University\DeepGraphicsWorkshop\git\ACTOR\models\smpl"
 
 SMPL_KINTREE_PATH = os.path.join(SMPL_DATA_PATH, "kintree_table.pkl")
 SMPL_MODEL_PATH = os.path.join(SMPL_DATA_PATH, "SMPL_NEUTRAL.pkl")

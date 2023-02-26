@@ -361,7 +361,7 @@ def split_to_fixed_length_clips(anim_edge_rot, anim_dir_path, out_suffix, clip_l
     return all_clips, all_motion_names
 
 
-def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, stride, out_dir):
+def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, stride, out_dir, max_anims=np.inf):
     anim_file_names = [name for name in os.listdir(data_root) if os.path.isfile(os.path.join(data_root, name))]
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
@@ -386,7 +386,7 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
         frametime = FRAME_TIME
         names_input = requested_joint_names
         anim_input, anim_from_pos_order, anim_from_pos_parents = animation_reader.open_as_animation(anim_src_file_path)
-        names_input = np.array(names_input)
+        names_input = np.array(names_input)[anim_from_pos_order]
 
         names_req_in_input = requested_joint_names
 
@@ -430,6 +430,9 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
 
         if anim_idx % 100 == 0:
             print('{}/{} Done'.format(anim_idx, len(anim_file_names)))
+
+        if anim_idx >= max_anims:
+            break
     ###
     # save final files
     ###
@@ -457,4 +460,4 @@ if __name__ == '__main__':
     if args.out_suffix is None:
         args.out_suffix = '_joints_1_frames_' + str(args.clip_len)
     preprocess_edge_rot(args.data_root, args.out_suffix, dilute_intern_joints=False, clip_len=args.clip_len,
-                        stride=args.stride, out_dir=args.out_dir)
+                        stride=args.stride, out_dir=args.out_dir, max_anims=np.inf)

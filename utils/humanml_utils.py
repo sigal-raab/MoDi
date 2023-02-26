@@ -36,6 +36,7 @@ HUMANML_JOINT_NAMES = [
     'L_Wrist',  # 20
     'R_Wrist',  # 21
 ]
+HUMANML_PARENTS = np.array([-1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14, 16, 17, 18, 19])
 IDENTITY_ROTATION = [1., 0., 0., 0., 1., 0.]
 
 
@@ -181,7 +182,6 @@ class HumanMLPosSample(HumanMLSample):
 
 
 class SampleReader:
-    parents = np.array([-1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14, 16, 17, 18, 19])
 
     def __init__(self):
         reference_rot_sample, reference_pos_sample = self.get_vec_pos_samples(DATASET_BASE_PATH, 0)
@@ -190,18 +190,18 @@ class SampleReader:
         self.reference_pos = reference_pos_sample[0].positions
         self.reference_offsets = self.pos_to_offsets(self.reference_pos)
         self.reference_orients = self.rot_to_orient(self.reference_rot)
-        self.sorted_order = AnimationStructure.get_sorted_order(self.parents)
+        self.sorted_order = AnimationStructure.get_sorted_order(HUMANML_PARENTS)
 
     @classmethod
     def pos_to_offsets(cls, pos):
         loc_for_offsets = pos
-        offsets = loc_for_offsets - loc_for_offsets[cls.parents]
+        offsets = loc_for_offsets - loc_for_offsets[HUMANML_PARENTS]
         offsets[0] = loc_for_offsets[0]
         return offsets
 
     @classmethod
     def rot_to_orient(cls, rot):
-        rel_rot = rot / rot[cls.parents]
+        rel_rot = rot / rot[HUMANML_PARENTS]
         rel_rot[0] = rot[0]
         return rel_rot
 
@@ -216,12 +216,12 @@ class SampleReader:
         locations = sample.positions
 
         offset_anim, sorted_order, sorted_parents = Animation.animation_from_offsets(self.reference_offsets,
-                                                                                     self.parents)
+                                                                                     HUMANML_PARENTS)
         assert sorted_order[0] == 0  # later we use pelvis location as hard coded 0
 
         # convert rotations to be relative to offset angle
         return InverseKinematics.animation_from_positions(positions=locations,
-                                                          parents=self.parents,
+                                                          parents=HUMANML_PARENTS,
                                                           offsets=self.reference_offsets,
                                                           ik_iterations=3)
 
@@ -250,60 +250,93 @@ class SampleReader:
                  names=np.array(HUMANML_JOINT_NAMES)[anim_from_pos_order])
 
 
-class HumanMLConversions:
-    op2hm_dict = {0: 15, 1: 12, 2: 16, 3: 18, 4: 20, 5: 17, 6: 19, 7: 21, 8: 0, 9: 1, 10: 4, 11: 7, 12: 2, 13: 5, 14: 8,
-                  15: 9, 16: 6, 17: 13, 18: 14, 19: 3, 20: 22}  # note: 7 & 8 are new in (4,10) & (8,11) respectively
-    hm2op_dict = {15: 0, 12: 1, 16: 2, 18: 3, 20: 4, 17: 5, 19: 6, 21: 7, 0: 8, 1: 9, 4: 10, 7: 11, 2: 12, 5: 13, 8: 14,
-                  9: 15, 6: 16, 13: 17, 14: 18, 3: 19, 22: 20, 10: 11, 11: 14}
+class HumanML2OPConversions:
+    def __init__(self):
+        op2hm_dict = {0: 15, 1: 12, 2: 16, 3: 18, 4: 20, 5: 17, 6: 19, 7: 21, 8: 0, 9: 1, 10: 4, 11: 7, 12: 2, 13: 5,
+                      14: 8,
+                      15: 9, 16: 6, 17: 13, 18: 14, 19: 3,
+                      20: 22}  # note: 7 & 8 are new in (4,10) & (8,11) respectively
+        hm2op_dict = {15: 0, 12: 1, 16: 2, 18: 3, 20: 4, 17: 5, 19: 6, 21: 7, 0: 8, 1: 9, 4: 10, 7: 11, 2: 12, 5: 13,
+                      8: 14,
+                      9: 15, 6: 16, 13: 17, 14: 18, 3: 19, 22: 20, 10: 11, 11: 14}
 
-    human_ml_len = 22
-    openpose_len = 20
+        human_ml_len = 22
+        openpose_len = 20
 
-    switch_hands = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12,
-                    13: 14, 16: 17, 18: 19, 20: 21, 14: 13, 17: 16, 19: 18, 21: 20, 15: 15, 22: 22}
+        self.switch_hands = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12,
+                             13: 14, 16: 17, 18: 19, 20: 21, 14: 13, 17: 16, 19: 18, 21: 20, 15: 15, 22: 22}
+        self.forward = op2hm_dict
+        self.backward = hm2op_dict
+        self.src_len = openpose_len
+        self.dst_len = human_ml_len
 
-    @classmethod
-    def openpose_list_to_humanml(cls, idxs):
-        return [cls.op2hm_dict[idx] for idx in idxs]
+    def openpose_list_to_humanml(self, idxs):
+        return [self.forward[idx] for idx in idxs]
 
-    @classmethod
-    def openpose_tuple_to_humanml(cls, idxs):
-        return tuple(cls.op2hm_dict[idx] for idx in idxs)
+    def openpose_tuple_to_humanml(self, idxs):
+        return tuple(self.forward[idx] for idx in idxs)
 
-    @classmethod
-    def openpose_list_dict_vals_to_humanml(cls, dic):
+    def openpose_list_dict_vals_to_humanml(self, dic):
         # for skeletal pooling
         new_dic = {}
         for k in dic.keys():
-            new_dic[k] = cls.openpose_list_to_humanml(dic[k])
+            new_dic[k] = self.openpose_list_to_humanml(dic[k])
         return new_dic
 
-    @classmethod
-    def reorder_openpose_to_human_ml(cls, array):
-        return [(array[cls.hm2op_dict[i]] if cls.hm2op_dict[i] < len(array) else None) for i in range(cls.openpose_len)]
+    def reorder_openpose_to_human_ml(self, array):
+        return [(array[self.backward[i]] if self.backward[i] < len(array) else None) for i in
+                range(self.src_len)]
 
-    @classmethod
-    def openpose_tuples_to_humanml(cls, tuples):
-        return [cls.openpose_tuple_to_humanml(t) for t in tuples]
+    def openpose_tuples_to_humanml(self, tuples):
+        return [self.openpose_tuple_to_humanml(t) for t in tuples]
 
-    @classmethod
-    def openpose_tuples_dict_vals_to_humanml(cls, dic):
+    def openpose_tuples_dict_vals_to_humanml(self, dic):
         # for skeletal pooling
         new_dic = {}
         for k in dic.keys():
-            new_dic[k] = cls.openpose_tuples_to_humanml(dic[k])
+            new_dic[k] = self.openpose_tuples_to_humanml(dic[k])
         return new_dic
 
-    @classmethod
-    def openpose_tuple_dict_to_humanml(cls, dic):
+    def openpose_tuple_dict_to_humanml(self, dic):
         new_dic = {}
         for k in dic.keys():
-            new_dic[cls.openpose_tuple_to_humanml(k)] = cls.openpose_tuple_to_humanml(dic[k])
+            new_dic[self.openpose_tuple_to_humanml(k)] = self.openpose_tuple_to_humanml(dic[k])
         return new_dic
+
+
+class HumanMLNewConversions(HumanML2OPConversions):
+    def __init__(self):
+        super().__init__()
+        reordered_joint_names = \
+            ['Pelvis', 'L_Hip', 'L_Knee', 'L_Ankle', 'L_Foot', 'R_Hip', 'R_Knee', 'R_Ankle', 'R_Foot', 'Spine1',
+             'Spine2', 'Spine3', 'Neck', 'Head', 'L_Collar', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Collar',
+             'R_Shoulder', 'R_Elbow', 'R_Wrist']
+        reordered_parents = [-1, 0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 12, 11, 14, 15, 16, 11, 18, 19, 20]
+
+        hm2new_dict = {}
+        for i, name in enumerate(HUMANML_JOINT_NAMES):
+            hm2new_dict[i] = reordered_joint_names.index(name)
+        hm2new_dict[22] = 22
+        self.forward = hm2new_dict
+        new2hm_dict = {}
+        for i, name in enumerate(reordered_joint_names):
+            new2hm_dict[i] = list(HUMANML_JOINT_NAMES).index(name)
+        new2hm_dict[22] = 22
+        self.backward = new2hm_dict
+        self.src_len = 22
+        self.dst_len = 22
 
 
 if __name__ == '__main__':
-    print(SampleReader.get_text(0))
+    src = {(0, 3): (0, 22), (6, 3): (0, 3), (9, 6): (6, 3), (12, 9): (9, 6),
+                           (15, 12): (12, 9), (9, 14): (9, 6), (17, 14): (9, 14), (17, 19): (17, 14),
+                           (19, 21): (17, 19), (9, 13): (9, 6), (16, 13): (9, 13), (16, 18): (16, 13),
+                           (18, 20): (16, 18), (0, 2): (0, 22), (2, 5): (0, 2), (5, 8): (2, 5), (8, 11): (5, 8),
+                           (0, 1): (0, 22), (1, 4): (0, 1), (4, 7): (1, 4), (7, 10): (4, 7)}
+    converter = HumanMLNewConversions()
+    print(converter.openpose_tuple_dict_to_humanml(src))
+
+    # print(SampleReader.get_texts(0))
 
     # num = 777
     # suffix = '_' + str(num) + ".bvh"
