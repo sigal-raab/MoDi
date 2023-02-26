@@ -316,11 +316,12 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         loss_dict["path"] = path_loss
         loss_dict["path_length"] = path_lengths.mean()
 
-        if i >= 2000 and i % 2000 == 0 and args.action_recog_model is not None:
-            fid, kid, g_diversity = calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints)
-            loss_dict['evaluation_metrics_fid'] = fid
-            loss_dict['evaluation_metrics_kid'] = kid
-            loss_dict['evaluation_metrics_g_diversity'] = g_diversity
+        #  TODO: Replace with our evals
+        # if i >= 2000 and i % 2000 == 0 and args.action_recog_model is not None:
+        #     fid, kid, g_diversity = calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints)
+        #     loss_dict['evaluation_metrics_fid'] = fid
+        #     loss_dict['evaluation_metrics_kid'] = kid
+        #     loss_dict['evaluation_metrics_g_diversity'] = g_diversity
 
         accumulate(g_ema, g_module, accum)
 
