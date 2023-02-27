@@ -5,17 +5,19 @@ from torch import nn
 from torch.nn import functional as F
 from torch.autograd import Function
 from torch.utils.cpp_extension import load
+import tempfile
 
 
 module_path = os.path.dirname(__file__)
-os.makedirs(os.path.join(os.path.expanduser('~'),'tmp', 'stylegan_lock'), exist_ok=True)
+build_directory = os.path.join(tempfile.gettempdir(), 'stylegan_lock')
+os.makedirs(build_directory, exist_ok=True)
 fused = load(
     "fused",
     sources=[
         os.path.join(module_path, "fused_bias_act.cpp"),
         os.path.join(module_path, "fused_bias_act_kernel.cu"),
     ],
-    build_directory=os.path.join(os.path.expanduser('~'),'tmp', 'stylegan_lock'),
+    build_directory=build_directory,
     # with_cuda=False
 )
 

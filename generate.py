@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import sys as _sys
 from utils.data import motion_from_raw, to_cpu
 from utils.pre_run import GenerateOptions, load_all_form_checkpoint
+from sentence_transformers import SentenceTransformer
 from utils.data import Joint, Edge # to be used in 'eval'
 
 
@@ -76,10 +77,11 @@ def sample(args, g_ema, device, mean_latent):
     generated_motion = pd.DataFrame(index=seeds, columns=['motion', 'W'], dtype=object)
     for i, seed in enumerate(seeds):
         rnd_generator = torch.Generator(device=device).manual_seed(int(seed))
+
         sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator)
         motion, W, _ = g_ema(
             [sample_z], truncation=args.truncation, truncation_latent=mean_latent,
-            return_sub_motions=args.return_sub_motions, return_latents=True)
+            return_sub_motions=args.return_sub_motions, return_latents=True,)
         if args.no_idle:
             stds[i] = get_motion_std(args, motion)
         if (i+1) % 1000 == 0:

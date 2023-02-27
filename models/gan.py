@@ -13,8 +13,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from sentence_transformers import SentenceTransformer
-
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 
 from models.skeleton import SkeletonUnpool
@@ -424,7 +422,8 @@ class Generator(nn.Module):
             lr_mlp=0.01,
             traits_class=None,
             entity=None,
-            n_inplace_conv=1
+            n_inplace_conv=1,
+            token_size=384
     ):
         super().__init__()
 
@@ -435,14 +434,19 @@ class Generator(nn.Module):
         self.size = (n_joints[-1], self.n_frames[
             -1])  # unlike stylegan2 for images, here target size is a const. not used but kept here for similarity with original code
 
+        self.token_size = token_size
         self.style_dim = style_dim
 
-        self.token_size = 384
 
         layers = [PixelNorm()]
 
         # mapping (style) network and constant
-        for i in range(n_mlp):
+        layers.append(
+            EqualLinear(
+                style_dim + token_size, style_dim, lr_mul=lr_mlp, activation='fused_lrelu'
+            )
+        )
+        for i in range(n_mlp - 1):
             layers.append(
                 EqualLinear(
                     style_dim, style_dim, lr_mul=lr_mlp, activation='fused_lrelu'
@@ -516,8 +520,6 @@ class Generator(nn.Module):
             if not p.requires_grad:
                 self.non_grad_params.append(name)
 
-        self.text_model = SentenceTransformer('all-MiniLM-L6-v2')
-
     def mean_latent(self, n_latent):
         latent_in = torch.randn(
             n_latent, self.style_dim, device=self.input.input.device
@@ -538,13 +540,11 @@ class Generator(nn.Module):
             truncation_latent=None,
             input_is_latent=False,
             return_sub_motions=False,
-            texts=None
+            text_embeddings=None
     ):
-        if not texts is None:
-            assert len(styles) == len(texts)
-            tokens = self.text_model.encode(texts)
-            styles = [torch.cat([styles[i], tokens[i]], 1) for i in
-                      range(len(styles))]  # there's probably a better way using vector operations.
+        if not text_embeddings is None:
+            styles = [torch.cat([styles[i], text_embeddings], 1) for i in
+                      range(len(styles))]
 
         if not input_is_latent:
             # forward the noise through the style pipeline to obtain W
@@ -756,9 +756,7 @@ class Discriminator(nn.Module):
             if not p.requires_grad:
                 self.non_grad_params.append(name)
 
-        self.text_model = SentenceTransformer('all-MiniLM-L6-v2')
-
-    def forward(self, input, text=None):
+    def forward(self, input, text_embeddings=None):
         # input dims: (samples, channels, entities, frames)
         out = self.convs(input)
 
@@ -772,11 +770,11 @@ class Discriminator(nn.Module):
         stddev = stddev.repeat(group, 1, height, width)  # repeat across batch, joints, frames
         out = torch.cat([out, stddev], 1)  # stddev added as an additional channel
 
-        if text is None:
+        if text_embeddings is None:
             out = self.final_conv(out)  # fuse the additional stddev channel with existing ones
         else:
-            token = self.text_model.encode(text)
-            out = self.final_conv_tokenized(torch.cat([out, token], 1))
+            text_embeddings_reshaped = text_embeddings[:, :, None, None].repeat(1, 1, 2, 4)
+            out = self.final_conv_tokenized(torch.cat([out, text_embeddings_reshaped], 1))
         out = out.view(batch, -1)
         out = self.final_linear(out)
 

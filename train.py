@@ -25,6 +25,8 @@ from utils.foot import get_foot_contact, get_foot_velo
 from utils.data import Joint, Edge # to be used in 'eval'
 from utils.pre_run import TrainOptions, setup_env
 
+from sentence_transformers import SentenceTransformer
+
 from utils.distributed import (
     get_rank,
     synchronize,
@@ -179,7 +181,8 @@ def set_grad_none(model, targets):
 
 
 def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
-          animations_output_folder, images_output_folder, mean_joints=None, std_joints=None, gt_bone_lengths=None, edge_rot_dict_general=None):
+          animations_output_folder, images_output_folder, text_model, mean_joints=None, std_joints=None, gt_bone_lengths=None,
+          edge_rot_dict_general=None):
     loader = sample_data(loader)
 
     pbar = range(args.iter)
@@ -230,11 +233,13 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, True)
 
         noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+        texts_encoded_g1 = torch.tensor(text_model.encode([""] * args.batch)).to(device)
+        texts_encoded_real = torch.tensor(text_model.encode([""] * args.batch)).to(device)
 
-        fake_img, gt_latents, inject_index = generator(noise, return_latents=True)
+        fake_img, gt_latents, inject_index = generator(noise, return_latents=True,  text_embeddings=texts_encoded_g1)
 
-        fake_pred = discriminator(fake_img)
-        real_pred = discriminator(real_img)
+        fake_pred = discriminator(fake_img, texts_encoded_g1)
+        real_pred = discriminator(real_img, texts_encoded_real)
         d_loss = d_logistic_loss(real_pred, fake_pred)
 
         loss_dict["d"] = d_loss
@@ -249,7 +254,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
         if d_regularize:
             real_img.requires_grad = True
-            real_pred = discriminator(real_img)
+            real_pred = discriminator(real_img, texts_encoded_real)
             r1_loss = d_r1_loss(real_pred, real_img)
 
             discriminator.zero_grad()
@@ -266,9 +271,10 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, False)
 
         noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        fake_img, gt_latents, inject_index = generator(noise, return_latents=True,
+        texts_encoded_g2 = torch.tensor(text_model.encode([""] * args.batch)).to(device)
+        fake_img, gt_latents, inject_index = generator(noise, return_latents=True, text_embeddings=texts_encoded_g2,
                                                        return_sub_motions=args.return_sub_motions)
-        fake_pred = discriminator(fake_img)
+        fake_pred = discriminator(fake_img, texts_encoded_g2)
 
         g_loss = g_nonsaturating_loss(fake_pred)
 
@@ -293,7 +299,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         if g_regularize:
             path_batch_size = max(1, args.batch // args.path_batch_shrink)
             noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
-            fake_img_path, latents, _ = generator(noise, return_latents=True)
+            texts_encoded_g3 = torch.tensor(text_model.encode([""] * path_batch_size)).to(device)
+            fake_img_path, latents, _ = generator(noise, return_latents=True, text_embeddings=texts_encoded_g3)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
                 fake_img_path, latents, mean_path_length
@@ -551,9 +558,10 @@ def main(args_not_parsed):
         sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
         drop_last=True,
     )
+    text_encoder = SentenceTransformer('all-MiniLM-L6-v2')
 
     train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
-          animations_output_folder, images_output_folder, mean_joints, std_joints, gt_bone_lengths, edge_rot_dict_general)
+          animations_output_folder, images_output_folder, text_encoder, mean_joints, std_joints, gt_bone_lengths, edge_rot_dict_general)
 
 
 if __name__ == "__main__":

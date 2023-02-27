@@ -4,16 +4,18 @@ import torch
 from torch.nn import functional as F
 from torch.autograd import Function
 from torch.utils.cpp_extension import load
+import tempfile
 
 
 module_path = os.path.dirname(__file__)
+build_directory = os.path.join(tempfile.gettempdir(), 'stylegan_lock')
 upfirdn2d_op = load(
     "upfirdn2d",
     sources=[
         os.path.join(module_path, "upfirdn2d.cpp"),
         os.path.join(module_path, "upfirdn2d_kernel.cu"),
     ],
-    build_directory=os.path.join(os.path.expanduser('~'), 'tmp', 'stylegan_lock'),
+    build_directory=build_directory,
 )
 
 

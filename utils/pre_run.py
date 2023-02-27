@@ -148,6 +148,7 @@ class GenerateOptions(TestBaseOptions):
         parser.add_argument('--boundary_path', type=str, help='Path to boundary file')
         parser.add_argument('--edit_radius', type=float,
                             help='Editing radius (i.e., max change of W in editing direction)')
+        parser.add_argument('--text', type=str, help='text to generate', default="")
 
 class EvaluateOptions(TestBaseOptions):
     def __init__(self):
