@@ -66,7 +66,7 @@ def sample(args, g_ema, device, mean_latent):
         texts = [""] * motions_num
     else:
         with open(args.text_path) as text_file:
-            texts = text_file.readlines()
+            texts = text_file.read().splitlines()
         motions_num = len(texts)
 
     text_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -212,7 +212,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                 motions_num = args.motions
             else:
                 with open(args.text_path) as text_file:
-                    texts = text_file.readlines()
+                    texts = text_file.read().splitlines()
                 motions_num = len(texts)
             out_path = f'{out_path}_{motions_num}'
         os.makedirs(out_path, exist_ok=True)
