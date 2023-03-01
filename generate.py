@@ -61,15 +61,27 @@ def z_from_seed(args, seed, device):
 def sample(args, g_ema, device, mean_latent):
     print('Sampling...')
 
-    seed_rnd_mult = args.motions*10000
+    if args.text_path is None:
+        motions_num = args.motions
+        texts = [""] * motions_num
+    else:
+        with open(args.text_path) as text_file:
+            texts = text_file.readlines()
+        motions_num = len(texts)
+
+    text_encoder = SentenceTransformer('all-MiniLM-L6-v2')
+    text_embeddings = text_encoder(texts).to(device)
+
+
+    seed_rnd_mult = motions_num*10000
     if args.sample_seeds is None:
         seeds = np.array([])
         if args.no_idle:
             no_idle_thresh = 0.7  # hard coded for now. better compute the mean of all stds and set the threshold accordingly
-            n_motions = 5*args.motions
+            n_motions = 5*motions_num
             stds = np.zeros(n_motions)
         else:
-            n_motions = args.motions
+            n_motions = motions_num
         while np.unique(seeds).shape[0] != n_motions: # refrain from duplicates in seeds
             seeds = (np.random.random(n_motions)*seed_rnd_mult).astype(int)
     else:
@@ -81,7 +93,7 @@ def sample(args, g_ema, device, mean_latent):
         sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator)
         motion, W, _ = g_ema(
             [sample_z], truncation=args.truncation, truncation_latent=mean_latent,
-            return_sub_motions=args.return_sub_motions, return_latents=True,)
+            return_sub_motions=args.return_sub_motions, return_latents=True, text_embeddings=text_embeddings)
         if args.no_idle:
             stds[i] = get_motion_std(args, motion)
         if (i+1) % 1000 == 0:
@@ -173,6 +185,7 @@ def get_gen_mot_np(args, generated_motion, mean_joints, std_joints):
 def generate(args, g_ema, device, mean_joints, std_joints, entity):
 
     type2func = {'interp': interpolate, 'sample': sample, 'edit': edit}
+
     with torch.no_grad():
         g_ema.eval()
         mean_latent = g_ema.mean_latent(args.truncation_mean)
@@ -192,7 +205,13 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
         time_str = datetime.datetime.now().strftime('%y_%m_%d_%H_%M')
         out_path = osp.join(osp.splitext(args.ckpt)[0] + '_files', f'{time_str}_{args.type}')
         if args.type == 'sample':
-            out_path = f'{out_path}_{args.motions}'
+            if args.text_path is None:
+                motions_num = args.motions
+            else:
+                with open(args.text_path) as text_file:
+                    texts = text_file.readlines()
+                motions_num = len(texts)
+            out_path = f'{out_path}_{motions_num}'
         os.makedirs(out_path, exist_ok=True)
     root_out_path = out_path
     if not isinstance(generated_motions, tuple):
