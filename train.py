@@ -412,7 +412,7 @@ def calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints
     stgcn_model = evaluate.initialize_model(device, modelpath= args.action_recog_model, dataset = args.dataset)
 
     # generate motions
-    generated_motions = evaluate.generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
+    generated_motions, texts = evaluate.generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
     generated_motions = generated_motions[:, :15]
     generated_motions -= generated_motions[:, 8:9, :, :]
     iterator_generated = data.DataLoader(generated_motions, batch_size=500, shuffle=False, num_workers=8)

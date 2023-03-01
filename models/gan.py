@@ -434,7 +434,7 @@ class Generator(nn.Module):
         self.size = (n_joints[-1], self.n_frames[
             -1])  # unlike stylegan2 for images, here target size is a const. not used but kept here for similarity with original code
 
-        self.token_size = token_size
+        self.token_dim = token_size
         self.style_dim = style_dim
 
 
@@ -522,7 +522,7 @@ class Generator(nn.Module):
 
     def mean_latent(self, n_latent):
         latent_in = torch.randn(
-            n_latent, self.style_dim, device=self.input.input.device
+            n_latent, self.style_dim + self.token_dim, device=self.input.input.device
         )
         latent = self.style(latent_in).mean(0, keepdim=True)
 

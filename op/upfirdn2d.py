@@ -8,7 +8,8 @@ import tempfile
 
 
 module_path = os.path.dirname(__file__)
-build_directory = os.path.join(tempfile.gettempdir(), 'stylegan_lock')
+build_directory = os.path.join(tempfile.mkdtemp(), 'stylegan_lock')
+os.makedirs(build_directory, exist_ok=True)
 upfirdn2d_op = load(
     "upfirdn2d",
     sources=[

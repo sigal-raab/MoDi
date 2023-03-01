@@ -49,7 +49,7 @@ def interpolate(args, g_ema, device, mean_latent):
         interp_name = 'interp_{}-{}'.format(interp_seeds[0],'mean' if len(interp_seeds)==1 else interp_seeds[-1])
         generated_motions.append((interp_name,generated_motion))
 
-    return tuple(generated_motions)
+    return tuple(generated_motions), None
 
 
 def z_from_seed(args, seed, device):
@@ -69,8 +69,7 @@ def sample(args, g_ema, device, mean_latent):
             texts = text_file.readlines()
         motions_num = len(texts)
 
-    text_encoder = SentenceTransformer('all-MiniLM-L6-v2')
-    text_embeddings = text_encoder(texts).to(device)
+    text_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 
     seed_rnd_mult = motions_num*10000
@@ -78,7 +77,7 @@ def sample(args, g_ema, device, mean_latent):
         seeds = np.array([])
         if args.no_idle:
             no_idle_thresh = 0.7  # hard coded for now. better compute the mean of all stds and set the threshold accordingly
-            n_motions = 5*motions_num
+            n_motions = 5 * motions_num
             stds = np.zeros(n_motions)
         else:
             n_motions = motions_num
@@ -86,14 +85,17 @@ def sample(args, g_ema, device, mean_latent):
             seeds = (np.random.random(n_motions)*seed_rnd_mult).astype(int)
     else:
         seeds = np.array(args.sample_seeds)
+    if len(seeds) != motions_num:
+        texts *= len(seeds)
     generated_motion = pd.DataFrame(index=seeds, columns=['motion', 'W'], dtype=object)
     for i, seed in enumerate(seeds):
         rnd_generator = torch.Generator(device=device).manual_seed(int(seed))
 
+        text_embedding = torch.tensor(text_model.encode(texts[i]))[None, :].to(device)
         sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator)
         motion, W, _ = g_ema(
             [sample_z], truncation=args.truncation, truncation_latent=mean_latent,
-            return_sub_motions=args.return_sub_motions, return_latents=True, text_embeddings=text_embeddings)
+            return_sub_motions=args.return_sub_motions, return_latents=True, text_embeddings=text_embedding)
         if args.no_idle:
             stds[i] = get_motion_std(args, motion)
         if (i+1) % 1000 == 0:
@@ -108,7 +110,8 @@ def sample(args, g_ema, device, mean_latent):
     else:
         filter = np.ones(generated_motion.shape[0], dtype=bool)
     generated_motion = generated_motion[filter]
-    return generated_motion
+    texts = np.array(texts)[filter]
+    return generated_motion, texts
 
 
 def get_motion_std(args, motion):
@@ -154,7 +157,7 @@ def edit(args, g_ema, device, mean_latent):
     interpolations = generated.W.apply(lambda W: W + torch.Tensor(linspace[:,np.newaxis] @ boundary_normal).to(device))
     generated.motion = interpolations.apply(lambda interp: g_ema([interp], truncation=1, input_is_latent=True))
     generated.motion = generated.motion.apply(lambda motion: motion[0])
-    return generated.motion
+    return generated.motion, None
 
 
 def get_gen_mot_np(args, generated_motion, mean_joints, std_joints):
@@ -189,7 +192,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     with torch.no_grad():
         g_ema.eval()
         mean_latent = g_ema.mean_latent(args.truncation_mean)
-        generated_motions = type2func[args.type](args, g_ema, device, mean_latent)
+        generated_motions, texts = type2func[args.type](args, g_ema, device, mean_latent)
 
     if entity.str() == 'Joint':
         edge_rot_dict_general = None
@@ -216,8 +219,9 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     root_out_path = out_path
     if not isinstance(generated_motions, tuple):
         generated_motions = (generated_motions,)
-    for generated_motion in generated_motions:
+    for i, generated_motion in enumerate(generated_motions):
         out_path = root_out_path
+        text_as_name = texts[i].replace(' ', '_')
         if isinstance(generated_motion, tuple):
             out_path = osp.join(out_path, generated_motion[0])
             os.makedirs(out_path, exist_ok=True)
@@ -230,7 +234,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
         if 'W' in generated_motion.columns:
             for seed in generated_motion.index:
                 assert generated_motion.W[seed].ndim == 3 and generated_motion.W[seed].shape[0] == 1
-                np.save(osp.join(out_path, 'Wplus_{}.npy'.format(seed)), generated_motion.W[seed][0].cpu().numpy())
+                np.save(osp.join(out_path, "-".join(['Wplus', text_as_name, '{}.npy'.format(seed)])), generated_motion.W[seed][0].cpu().numpy())
 
         # save motions
         motion_np, _ = get_gen_mot_np(args, generated_motion['motion'], mean_joints, std_joints)
@@ -243,7 +247,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                          n_sampled_frames=n_sampled_frames,
                          entity=entity.str(), edge_rot_dict_general=edge_rot_dict_general)
         prefix_no_underscore = prefix.replace('_', '')
-        fig_name = osp.join(out_path, f'{prefix_no_underscore}.png')
+        fig_name = osp.join(out_path, "-".join([text_as_name, f'{prefix_no_underscore}.png']))
         dpi = max(n_motions, n_sampled_frames) * 100
         fig.savefig(fig_name, dpi=dpi, bbox_inches='tight')
         plt.close()
@@ -256,7 +260,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                 cluster_label = generated_motion.cluster_label[idx]
                 cluster_label = torch.argmax(cluster_label).item()
                 id = f'g{cluster_label:02d}_{id}'
-            motion2bvh(motion_np[i], osp.join(out_path, f'{prefix}{id}.bvh'),
+            motion2bvh(motion_np[i], osp.join(out_path, "-".join([text_as_name, f'{prefix}{id}.bvh'])),
                        parents=entity.parents_list, type=args.type, entity=entity.str(),
                        edge_rot_dict_general=edge_rot_dict_general)
 

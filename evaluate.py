@@ -39,7 +39,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
         g_ema.eval()
         mean_latent = g_ema.mean_latent(args.truncation_mean)
         args.truncation = 1
-        generated_motions = sample(args, g_ema, device, mean_latent)
+        generated_motions, texts = sample(args, g_ema, device, mean_latent)
 
     generated_motion = generated_motions.motion
     # convert motion to numpy
@@ -58,11 +58,11 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     generated_motions = np.concatenate(generated_motion_np, axis=0)
 
     if entity.str() == 'Joint':
-        return generated_motions
+        return generated_motions, texts
 
     _, _, _, edge_rot_dict_general = motion_from_raw(args, np.load(args.path, allow_pickle=True))
     generated_motions = convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general)
-    return generated_motions
+    return generated_motions, texts
 
 
 def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general):
@@ -161,7 +161,7 @@ def main(args_not_parsed):
 
     if args.test_model:
         # generate motions
-        generated_motions = generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
+        generated_motions, texts = generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
         generated_motions = generated_motions[:, :15]
 
     elif args.test_actor:
