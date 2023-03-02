@@ -385,9 +385,9 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     },
                     osp.join(args.model_save_path, f"checkpoint/{str(i).zfill(6)}.pt")
                 )
-                fake_motion = fake_img.transpose(1,2).detach().cpu().numpy()
-
-                motion_path = osp.join(animations_output_folder, 'fake_motion_{}.bvh'.format(i))
+                fake_motion = fake_img.transpose(1, 2).detach().cpu().numpy()
+                output_text = texts_2[0]
+                motion_path = osp.join(animations_output_folder, 'fake_motion_{}_{}.bvh'.format(i, output_text))
                 motion2bvh(fake_motion[0], motion_path, parents=entity.parents_list, entity=entity.str(), edge_rot_dict_general=edge_rot_dict_general)
                 if args.clearml:
                     logger.report_media(title='Animation', series='Predicted Motion', iteration=i, local_path=motion_path)
