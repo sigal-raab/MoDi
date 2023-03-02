@@ -327,19 +327,20 @@ def sanity_check_split(all_clips, anim_joint_rot, clip_len, frametime, mot_dir, 
         BVH.save(sanity_file, anim_edge_rot_clip, names=names_clip, frametime=frametime)
 
 
-def split_to_fixed_length_clips(anim_edge_rot, anim_dir_path, out_suffix, clip_len, stride, root_path, anim_joint_rot,
-                                frametime):
+def split_to_fixed_length_clips(anim_edge_rot, out_suffix, clip_len, stride, root_path, anim_joint_rot,
+                                frametime, anim_name):
     assert clip_len % stride == 0
     divisor = clip_len // stride
-    mot_dir = os.path.join(anim_dir_path, 'motions{}'.format(out_suffix))
+    mot_dir = os.path.join(root_path, 'motions{}'.format(out_suffix))
     os.makedirs(mot_dir, exist_ok=True)
     n_frames = anim_edge_rot['rot_edge_no_root'].shape[0]
     n_clips = n_frames // (clip_len // divisor) - (divisor - 1)
     all_clips = np.empty(max(n_clips, 0), dtype=dict)
     all_motion_names = list()
+    anim_name = os.path.splitext(anim_name)[0]
 
     for i in range(n_clips):
-        save_path = os.path.join(mot_dir, '{}.npy'.format(i + 1))
+        save_path = os.path.join(mot_dir, anim_name + '_{}.npy'.format(i + 1))
         clip = copy.deepcopy(anim_edge_rot)
         frame_from = i * (clip_len // divisor)
         frame_to = i * (clip_len // divisor) + clip_len
@@ -353,7 +354,7 @@ def split_to_fixed_length_clips(anim_edge_rot, anim_dir_path, out_suffix, clip_l
 
     all_motion_names = np.array(all_motion_names)
     for file_idx, motion_name in enumerate(all_motion_names):
-        all_motion_names[file_idx] = osp.relpath(motion_name, root_path)  # remove root_path from name
+        all_motion_names[file_idx] = osp.relpath(motion_name, mot_dir)  # remove root_path from name
 
     if DEBUG:
         sanity_check_split(all_clips, anim_joint_rot, clip_len, frametime, mot_dir, divisor)
@@ -421,8 +422,9 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
         # split the clip to a set of fixed length clips
         ###
         anim_edges_split, file_names = \
-            split_to_fixed_length_clips(anim_edge_rot, out_dir, out_suffix, clip_len=clip_len, stride=stride,
-                                        root_path=out_dir, anim_joint_rot=anim_diluted, frametime=frametime)
+            split_to_fixed_length_clips(anim_edge_rot, out_suffix, clip_len=clip_len, stride=stride,
+                                        root_path=out_dir, anim_joint_rot=anim_diluted, frametime=frametime,
+                                        anim_name=anim_name)
 
         if anim_edges_split_all_chars is None:
             anim_edges_split_all_chars = anim_edges_split

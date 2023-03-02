@@ -226,12 +226,9 @@ class SampleReader:
                                                           ik_iterations=3)
 
     @staticmethod
-    def get_texts(sample_num):
-        sample_id = "%06d" % sample_num
-        text_file_name = sample_id + ".txt"
-        text_path = os.path.join(DATASET_BASE_PATH, "texts", text_file_name)
-        with open(text_path, 'r') as f:
-            lines = f.readlines()
+    def get_texts(text_path):
+        with open(text_path, encoding="utf8") as f:
+            lines = f.read().splitlines()
         return [line.split('#')[0] for line in lines]
 
     # def open_as_animation(self, samples):

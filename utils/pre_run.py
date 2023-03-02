@@ -88,6 +88,8 @@ class TrainOptions(TrainBaseOptions):
                             help="Number of self convolutions within each hierarchical layer. StyleGAN original is 1. ")
         parser.add_argument('--act_rec_gt_path', type=str,
                             help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
+        parser.add_argument("--dataset_texts_path", type=str, default=None, help='path to a file containing ordered filenames of the split dataset')
+        parser.add_argument("--dataset_texts_root", type=str, default=None, help='path to directory containing the actual text files')
         self.parser = parser
 
     def after_parse(self, args):
