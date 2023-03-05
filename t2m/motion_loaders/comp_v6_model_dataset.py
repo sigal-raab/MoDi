@@ -300,7 +300,7 @@ class ModiGeneratedDataset(Dataset):
                         # print(m_lens)
                         # print(text_data)
                         sub_dict = {'motion': pred_motions[0].cpu().numpy(),
-                                    'length': 64,
+                                    'length': len(pred_motions[0][1]) * opt.unit_length,
                                     'cap_len': cap_lens[0].item(),
                                     'caption': caption[0],
                                     'tokens': tokens}
