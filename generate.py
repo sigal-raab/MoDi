@@ -69,6 +69,7 @@ def sample(args, g_ema, device, mean_latent):
             texts = text_file.read().splitlines()
         motions_num = len(texts)
 
+    seed2text = {}
     text_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 
@@ -81,7 +82,7 @@ def sample(args, g_ema, device, mean_latent):
             stds = np.zeros(n_motions)
         else:
             n_motions = motions_num
-        while np.unique(seeds).shape[0] != n_motions: # refrain from duplicates in seeds
+        while np.unique(seeds).shape[0] != n_motions:  # refrain from duplicates in seeds
             seeds = (np.random.random(n_motions)*seed_rnd_mult).astype(int)
     else:
         seeds = np.array(args.sample_seeds)
@@ -89,9 +90,11 @@ def sample(args, g_ema, device, mean_latent):
         texts *= len(seeds)
     generated_motion = pd.DataFrame(index=seeds, columns=['motion', 'W'], dtype=object)
     for i, seed in enumerate(seeds):
+        seed2text[seed] = texts[i]
         rnd_generator = torch.Generator(device=device).manual_seed(int(seed))
 
         text_embedding = torch.tensor(text_model.encode(texts[i]))[None, :].to(device)
+        # sample_z = torch.randn(1, args.latent - text_embedding.shape[1], device=device, generator=rnd_generator)
         sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator)
         motion, W, _ = g_ema(
             [sample_z], truncation=args.truncation, truncation_latent=mean_latent,
@@ -102,7 +105,7 @@ def sample(args, g_ema, device, mean_latent):
             print(f'Done sampling {i+1} motions.')
 
         # to_cpu is used becuase advanced python versions cannot assign a cuda object to a dataframe
-        generated_motion.loc[seed,'motion'] = to_cpu(motion)
+        generated_motion.loc[seed, 'motion'] = to_cpu(motion)
         generated_motion.loc[seed, 'W'] = to_cpu(W)
 
     if args.no_idle:
@@ -110,8 +113,7 @@ def sample(args, g_ema, device, mean_latent):
     else:
         filter = np.ones(generated_motion.shape[0], dtype=bool)
     generated_motion = generated_motion[filter]
-    texts = np.array(texts)[filter]
-    return generated_motion, texts
+    return generated_motion, seed2text
 
 
 def get_motion_std(args, motion):
@@ -192,7 +194,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     with torch.no_grad():
         g_ema.eval()
         mean_latent = g_ema.mean_latent(args.truncation_mean)
-        generated_motions, texts = type2func[args.type](args, g_ema, device, mean_latent)
+        generated_motions, seed2text = type2func[args.type](args, g_ema, device, mean_latent)
 
     if entity.str() == 'Joint':
         edge_rot_dict_general = None
@@ -207,21 +209,12 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     else:
         time_str = datetime.datetime.now().strftime('%y_%m_%d_%H_%M')
         out_path = osp.join(osp.splitext(args.ckpt)[0] + '_files', f'{time_str}_{args.type}')
-        if args.type == 'sample':
-            if args.text_path is None:
-                motions_num = args.motions
-            else:
-                with open(args.text_path) as text_file:
-                    texts = text_file.read().splitlines()
-                motions_num = len(texts)
-            out_path = f'{out_path}_{motions_num}'
         os.makedirs(out_path, exist_ok=True)
     root_out_path = out_path
     if not isinstance(generated_motions, tuple):
         generated_motions = (generated_motions,)
     for i, generated_motion in enumerate(generated_motions):
         out_path = root_out_path
-        text_as_name = texts[i].replace(' ', '_')
         if isinstance(generated_motion, tuple):
             out_path = osp.join(out_path, generated_motion[0])
             os.makedirs(out_path, exist_ok=True)
@@ -232,9 +225,9 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
 
         # save W if exists
         if 'W' in generated_motion.columns:
-            for seed in generated_motion.index:
+            for j, seed in enumerate(generated_motion.index):
                 assert generated_motion.W[seed].ndim == 3 and generated_motion.W[seed].shape[0] == 1
-                np.save(osp.join(out_path, "-".join(['Wplus', text_as_name, '{}.npy'.format(seed)])), generated_motion.W[seed][0].cpu().numpy())
+                np.save(osp.join(out_path, f'Wplus_{j}_{seed}.npy'), generated_motion.W[seed][0].cpu().numpy())
 
         # save motions
         motion_np, _ = get_gen_mot_np(args, generated_motion['motion'], mean_joints, std_joints)
@@ -247,22 +240,27 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                          n_sampled_frames=n_sampled_frames,
                          entity=entity.str(), edge_rot_dict_general=edge_rot_dict_general)
         prefix_no_underscore = prefix.replace('_', '')
-        fig_name = osp.join(out_path, "-".join([text_as_name, f'{prefix_no_underscore}.png']))
+        fig_name = osp.join(out_path,  f'{prefix_no_underscore}.png')
         dpi = max(n_motions, n_sampled_frames) * 100
         fig.savefig(fig_name, dpi=dpi, bbox_inches='tight')
         plt.close()
 
-        for i, idx in enumerate(generated_motion.index):
-            id = idx if idx is not None else i
+        texts_reordered = []
+        for j, idx in enumerate(generated_motion.index):
+            id = idx if idx is not None else j
             if args.simple_idx:
-                id = '{:03d}'.format(i)
+                id = '{:03d}'.format(j)
             if 'cluster_label' in generated_motion.columns:
                 cluster_label = generated_motion.cluster_label[idx]
                 cluster_label = torch.argmax(cluster_label).item()
                 id = f'g{cluster_label:02d}_{id}'
-            motion2bvh(motion_np[i], osp.join(out_path, "-".join([text_as_name, f'{prefix}{id}.bvh'])),
+            motion2bvh(motion_np[j], osp.join(out_path, f'{prefix}{j}_{id}.bvh'),
                        parents=entity.parents_list, type=args.type, entity=entity.str(),
                        edge_rot_dict_general=edge_rot_dict_general)
+            texts_reordered.append(seed2text[idx])
+
+        with open(osp.join(out_path, 'generated_texts.txt'), 'w') as generated_texts_file:
+            generated_texts_file.write('\n'.join(texts_reordered))
 
     # save args
     pd.Series(args.__dict__).to_csv(osp.join(root_out_path, 'args.csv'), sep='\t', header=None)

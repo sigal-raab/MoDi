@@ -23,7 +23,7 @@ import evaluate as evaluate
 
 from models.gan import Generator, Discriminator
 from utils.foot import get_foot_contact, get_foot_velo
-from utils.data import Joint, Edge # to be used in 'eval'
+from utils.data import Joint, Edge  # to be used in 'eval'
 from utils.pre_run import TrainOptions, setup_env
 from utils import humanml_utils
 
@@ -35,6 +35,7 @@ from utils.distributed import (
     reduce_sum,
     get_world_size,
 )
+
 try:
     from clearml import Task
 except ImportError:
@@ -44,6 +45,7 @@ try:
     from utils.loss_recorder import LossRecorder
 except ImportError:
     LossRecorder = None
+
 
 def data_sampler(dataset, shuffle, distributed):
     if distributed:
@@ -77,6 +79,7 @@ def sample_data(loader):
     while True:
         for batch in loader:
             yield batch
+
 
 # discriminator pushes 'real' to be positive and 'fake' to be negative
 def d_logistic_loss(real_pred, fake_pred):
@@ -122,7 +125,8 @@ def g_path_regularize(fake_img, latents, mean_path_length, decay=0.01):
 def g_foot_contact_loss(motion, glob_pos, axis_up, edge_rot_dict_general):
     # motion is of shape samples x features x joints x frames
     label_idx = motion.shape[2] - len(foot_names)
-    skeletal_foot_contact = get_foot_contact(motion[:, :, :label_idx], glob_pos, axis_up, edge_rot_dict_general, foot_names)
+    skeletal_foot_contact = get_foot_contact(motion[:, :, :label_idx], glob_pos, axis_up, edge_rot_dict_general,
+                                             foot_names)
     predicted_foot_contact = motion[:, 0, label_idx:]
     return F.mse_loss(skeletal_foot_contact, predicted_foot_contact)
     # return F.binary_cross_entropy_with_logits((predicted_foot_contact-.5)*12, skeletal_foot_contact)
@@ -182,7 +186,8 @@ def set_grad_none(model, targets):
 
 
 def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
-          animations_output_folder, images_output_folder, text_model, motion_descriptions, mean_joints=None, std_joints=None,
+          animations_output_folder, images_output_folder, text_model, motion_descriptions, mean_joints=None,
+          std_joints=None,
           gt_bone_lengths=None, edge_rot_dict_general=None):
     loader = sample_data(loader)
 
@@ -224,7 +229,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
         real_img, label_ids = next(loader)  # joints x coords x frames
         real_img = real_img.float()  # loader produces doubles (64 bit), where network uses floats (32 bit)
-        real_img = real_img.transpose(1, 2) #  joints x coords x frames  ==>   coords x joints x frames
+        real_img = real_img.transpose(1, 2)  # joints x coords x frames  ==>  coords x joints x frames
         real_img = real_img.to(device)
 
         ######################
@@ -233,12 +238,13 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(generator, False)
         requires_grad(discriminator, True)
 
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-
         texts_1 = [random.choice(motion_descriptions[j]) for j in label_ids]
         texts_embeddings_1 = torch.tensor(text_model.encode(texts_1)).to(device)
 
-        fake_img, gt_latents, inject_index = generator(noise, return_latents=True,  text_embeddings=texts_embeddings_1)
+        # noise = mixing_noise(args.batch, args.latent - texts_embeddings_1.shape[1], args.mixing, device)
+        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+
+        fake_img, gt_latents, inject_index = generator(noise, return_latents=True, text_embeddings=texts_embeddings_1)
 
         fake_pred = discriminator(fake_img, texts_embeddings_1)
         real_pred = discriminator(real_img, texts_embeddings_1)
@@ -272,9 +278,10 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(generator, True)
         requires_grad(discriminator, False)
 
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
         texts_2 = [random.choice(motion_descriptions[j]) for j in label_ids]
         texts_embeddings_2 = torch.tensor(text_model.encode(texts_2)).to(device)
+        # noise = mixing_noise(args.batch, args.latent - texts_embeddings_2.shape[1], args.mixing, device)
+        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True, text_embeddings=texts_embeddings_2,
                                                        return_sub_motions=args.return_sub_motions)
         fake_pred = discriminator(fake_img, texts_embeddings_2)
@@ -294,16 +301,20 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         loss_dict["encourage_contact"] = g_encourage_contact(fake_img)
 
         generator.zero_grad()
-        (g_loss + args.g_foot_reg_weight * foot_contact_loss + args.g_encourage_contact_weight * loss_dict["encourage_contact"]).backward()
+        (g_loss + args.g_foot_reg_weight * foot_contact_loss + args.g_encourage_contact_weight * loss_dict[
+            "encourage_contact"]).backward()
         g_optim.step()
 
         g_regularize = i % args.g_reg_every == 0
 
         if g_regularize:
             path_batch_size = max(1, args.batch // args.path_batch_shrink)
-            noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
+
             texts_3 = [random.choice(motion_descriptions[j]) for j in random.choices(label_ids, k=path_batch_size)]
             texts_embeddings_3 = torch.tensor(text_model.encode(texts_3)).to(device)
+
+            # noise = mixing_noise(path_batch_size, args.latent - texts_embeddings_3.shape[1], args.mixing, device)
+            noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
             fake_img_path, latents, _ = generator(noise, return_latents=True, text_embeddings=texts_embeddings_3)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
@@ -321,7 +332,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             g_optim.step()
 
             mean_path_length_avg = (
-                reduce_sum(mean_path_length).item() / get_world_size()  # handle distributed data
+                    reduce_sum(mean_path_length).item() / get_world_size()  # handle distributed data
             )
 
         loss_dict["path"] = path_loss
@@ -364,14 +375,17 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                 print(f'[{i}/{args.iter}]', description_str)
 
             if args.clearml or args.tensorboard:
-                for loss_name, loss_val in zip(['Generator', 'Discriminator', 'R1', 'Path', 'Foot', 'Encourage contact'],
-                                               [g_loss_val, d_loss_val, r1_val, path_loss_val, foot_contact_loss_val, encourage_contact_loss_val]):
+                for loss_name, loss_val in zip(
+                        ['Generator', 'Discriminator', 'R1', 'Path', 'Foot', 'Encourage contact'],
+                        [g_loss_val, d_loss_val, r1_val, path_loss_val, foot_contact_loss_val,
+                         encourage_contact_loss_val]):
                     logger.report_scalar("Losses", loss_name, iteration=i, value=loss_val)
                 if args.action_recog_model is not None:
-                    for metric_name, metric_val in zip(['FID', 'KID', 'Diversity'], [fid_metric, kid_metric, g_diversity_metric]):
+                    for metric_name, metric_val in zip(['FID', 'KID', 'Diversity'],
+                                                       [fid_metric, kid_metric, g_diversity_metric]):
                         logger.report_scalar("Evaluation metrics", metric_name, iteration=i, value=metric_val)
 
-            if i == 0 or (i+1) % report_every == 0:
+            if i == 0 or (i + 1) % report_every == 0:
                 torch.save(
                     {
                         "g": g_module.state_dict(),
@@ -391,9 +405,11 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                 with open(output_text_path, 'w') as output_text_file:  # TODO: add this format to generate.py
                     output_text_file.write(output_text)
                 motion_path = osp.join(animations_output_folder, 'fake_motion_{}.bvh'.format(i))
-                motion2bvh(fake_motion[0], motion_path, parents=entity.parents_list, entity=entity.str(), edge_rot_dict_general=edge_rot_dict_general)
+                motion2bvh(fake_motion[0], motion_path, parents=entity.parents_list, entity=entity.str(),
+                           edge_rot_dict_general=edge_rot_dict_general)
                 if args.clearml:
-                    logger.report_media(title='Animation', series='Predicted Motion', iteration=i, local_path=motion_path)
+                    logger.report_media(title='Animation', series='Predicted Motion', iteration=i,
+                                        local_path=motion_path)
 
                 fig = motion2fig(fake_motion, H=512, W=512, entity=entity.str(),
                                  edge_rot_dict_general=edge_rot_dict_general)
@@ -410,13 +426,13 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     time_measure.append(elapsed)
                     print(f'\nTime of last {report_every} iterations: {int(elapsed)} seconds.')
                     start_time_measure = time.time()
-    mean_times = sum(time_measure)/len(time_measure)
+    mean_times = sum(time_measure) / len(time_measure)
     print(f'\nAverage time for {report_every} iterations: {mean_times} seconds.')
 
 
 def calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints):
     # create stgcn model
-    stgcn_model = evaluate.initialize_model(device, modelpath= args.action_recog_model, dataset = args.dataset)
+    stgcn_model = evaluate.initialize_model(device, modelpath=args.action_recog_model, dataset=args.dataset)
 
     # generate motions
     generated_motions, texts = evaluate.generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
@@ -436,15 +452,16 @@ def calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints
     dataset_features, dataset_predictions = evaluate.compute_features(stgcn_model, iterator_dataset)
     real_stats = evaluate.calculate_activation_statistics(dataset_features)
     # compute metrics
-    #fid
+    # fid
     fid = evaluate.calculate_fid(generated_stats, real_stats)
-    #kid
+    # kid
     kid = evaluate.calculate_kid(dataset_features.cpu(), generated_features.cpu())
-    #generated diversity
+    # generated diversity
     g_diversity = evaluate.calculate_diversity(generated_features)
     # precision/recall (lower priority)
 
     return fid, kid[0], g_diversity
+
 
 def main(args_not_parsed):
     parser = TrainOptions()
@@ -494,14 +511,12 @@ def main(args_not_parsed):
     args.start_iter = 0
     entity = eval(args.entity)
 
-    generator = Generator(
-        args.latent, args.n_mlp, traits_class=traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
-    ).to(device)
+    generator = Generator(args.latent, args.n_mlp, traits_class=traits_class, entity=entity,
+                          n_inplace_conv=args.n_inplace_conv, override_noise=False).to(device)
     discriminator = Discriminator(traits_class=traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
-    ).to(device)
-    g_ema = Generator(
-        args.latent, args.n_mlp, traits_class=traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
-    ).to(device)
+                                  ).to(device)
+    g_ema = Generator(args.latent, args.n_mlp, traits_class=traits_class, entity=entity,
+                      n_inplace_conv=args.n_inplace_conv, override_noise=False).to(device)
     g_ema.eval()
     accumulate(g_ema, generator, 0)
 
@@ -553,7 +568,7 @@ def main(args_not_parsed):
                      edge_rot_dict_general=edge_rot_dict_general)
     fig_name = osp.join(images_output_folder, 'real_motion.png')
     fig.savefig(fig_name, dpi=300, bbox_inches='tight')
-    plt.close() # close figure
+    plt.close()  # close figure
     if args.clearml:
         logger.report_media(title='Image', series='Ground Truth Motion', iteration=0, local_path=fig_name)
 
@@ -563,7 +578,8 @@ def main(args_not_parsed):
         motion_descriptions = [[""]] * len(split_motion_ids)
         for i, split_motion_id in enumerate(split_motion_ids):
             text_file_id = split_motion_id.split('_')[0]  # assuming format being "001234_1.npy"
-            motion_descriptions[i] = humanml_utils.SampleReader.get_texts(os.path.join(args.dataset_texts_root, text_file_id + '.txt'))
+            motion_descriptions[i] = humanml_utils.SampleReader.get_texts(
+                os.path.join(args.dataset_texts_root, text_file_id + '.txt'))
     else:
         motion_descriptions = [[""]] * motion_data.shape[0]
 

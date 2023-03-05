@@ -423,7 +423,8 @@ class Generator(nn.Module):
             traits_class=None,
             entity=None,
             n_inplace_conv=1,
-            token_size=384
+            token_size=384,
+            override_noise=False
     ):
         super().__init__()
 
@@ -434,24 +435,32 @@ class Generator(nn.Module):
         self.size = (n_joints[-1], self.n_frames[
             -1])  # unlike stylegan2 for images, here target size is a const. not used but kept here for similarity with original code
 
-        self.token_dim = token_size
+        self.text_dim = token_size
         self.style_dim = style_dim
 
 
         layers = [PixelNorm()]
 
         # mapping (style) network and constant
-        layers.append(
-            EqualLinear(
-                style_dim + token_size, style_dim, lr_mul=lr_mlp, activation='fused_lrelu'
-            )
-        )
-        for i in range(n_mlp - 1):
+        if not override_noise:
             layers.append(
                 EqualLinear(
-                    style_dim, style_dim, lr_mul=lr_mlp, activation='fused_lrelu'
+                    style_dim + token_size, style_dim, lr_mul=lr_mlp, activation='fused_lrelu'
                 )
             )
+            for i in range(n_mlp - 1):
+                layers.append(
+                    EqualLinear(
+                        style_dim, style_dim, lr_mul=lr_mlp, activation='fused_lrelu'
+                    )
+                )
+        else:
+            for i in range(n_mlp):
+                layers.append(
+                    EqualLinear(
+                        style_dim, style_dim, lr_mul=lr_mlp, activation='fused_lrelu'
+                    )
+                )
 
         self.style = nn.Sequential(*layers)
         self.input = ConstantInput(self.n_channels[0], size=(n_joints[0], self.n_frames[0]))
@@ -522,7 +531,7 @@ class Generator(nn.Module):
 
     def mean_latent(self, n_latent):
         latent_in = torch.randn(
-            n_latent, self.style_dim + self.token_dim, device=self.input.input.device
+            n_latent, self.style_dim + self.text_dim, device=self.input.input.device
         )
         latent = self.style(latent_in).mean(0, keepdim=True)
 
@@ -542,7 +551,7 @@ class Generator(nn.Module):
             return_sub_motions=False,
             text_embeddings=None
     ):
-        if not text_embeddings is None:
+        if text_embeddings is not None:
             styles = [torch.cat([styles[i], text_embeddings], 1) for i in
                       range(len(styles))]
 
