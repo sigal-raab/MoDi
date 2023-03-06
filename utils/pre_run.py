@@ -151,7 +151,6 @@ class GenerateOptions(TestBaseOptions):
         parser.add_argument('--edit_radius', type=float,
                             help='Editing radius (i.e., max change of W in editing direction)')
         parser.add_argument('--text_path', type=str, help='Path to texts to generate', default=None)
-
 class EvaluateOptions(TestBaseOptions):
     def __init__(self):
         super().__init__()

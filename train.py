@@ -238,8 +238,9 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(generator, False)
         requires_grad(discriminator, True)
 
-        texts_1 = [random.choice(motion_descriptions[j]) for j in label_ids]
-        texts_embeddings_1 = torch.tensor(text_model.encode(texts_1)).to(device)
+        # texts_1 = [random.choice(motion_descriptions[j]) for j in label_ids]
+        texts_1 = [motion_descriptions[j][0] for j in label_ids]
+        texts_embeddings_1 = torch.tensor(text_model.encode(texts_1))
 
         # noise = mixing_noise(args.batch, args.latent - texts_embeddings_1.shape[1], args.mixing, device)
         noise = mixing_noise(args.batch, args.latent, args.mixing, device)
@@ -279,7 +280,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, False)
 
         texts_2 = [random.choice(motion_descriptions[j]) for j in label_ids]
-        texts_embeddings_2 = torch.tensor(text_model.encode(texts_2)).to(device)
+        texts_embeddings_2 = torch.tensor(text_model.encode(texts_2))
         # noise = mixing_noise(args.batch, args.latent - texts_embeddings_2.shape[1], args.mixing, device)
         noise = mixing_noise(args.batch, args.latent, args.mixing, device)
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True, text_embeddings=texts_embeddings_2,
@@ -311,7 +312,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             path_batch_size = max(1, args.batch // args.path_batch_shrink)
 
             texts_3 = [random.choice(motion_descriptions[j]) for j in random.choices(label_ids, k=path_batch_size)]
-            texts_embeddings_3 = torch.tensor(text_model.encode(texts_3)).to(device)
+            texts_embeddings_3 = torch.tensor(text_model.encode(texts_3))
 
             # noise = mixing_noise(path_batch_size, args.latent - texts_embeddings_3.shape[1], args.mixing, device)
             noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
@@ -593,7 +594,7 @@ def main(args_not_parsed):
         sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
         drop_last=True,
     )
-    text_encoder = SentenceTransformer('all-MiniLM-L6-v2')
+    text_encoder = SentenceTransformer('all-MiniLM-L6-v2').to(device)
 
     train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
           animations_output_folder, images_output_folder, text_encoder, motion_descriptions, mean_joints, std_joints,

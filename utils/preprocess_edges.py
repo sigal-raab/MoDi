@@ -425,6 +425,8 @@ def preprocess_edge_rot(data_root, out_suffix, dilute_intern_joints, clip_len, s
             split_to_fixed_length_clips(anim_edge_rot, out_suffix, clip_len=clip_len, stride=stride,
                                         root_path=out_dir, anim_joint_rot=anim_diluted, frametime=frametime,
                                         anim_name=anim_name)
+        if args.no_stride:
+            anim_edges_split, file_names = anim_edges_split[0:1], file_names[0:1]
 
         if anim_edges_split_all_chars is None:
             anim_edges_split_all_chars = anim_edges_split
@@ -458,6 +460,7 @@ if __name__ == '__main__':
                         help="Stride size between the beginning of one clip to the beginning of the following one.")
     parser.add_argument("--out_dir", type=str, help="Out path for created files.")
     parser.add_argument("--dataset_names", type=str, help="Path a file containing the names of the files in the dataset")
+    parser.add_argument("--no_stride", action="store_true", help="don't stride over motion")
     args = parser.parse_args()
 
     # anim_input, names_input, frametime = BVH.load(r"D:\Documents\University\DeepGraphicsWorkshop\git\MoDi\results\generated_30441.bvh")

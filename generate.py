@@ -13,6 +13,7 @@ from utils.data import motion_from_raw, to_cpu
 from utils.pre_run import GenerateOptions, load_all_form_checkpoint
 from sentence_transformers import SentenceTransformer
 from utils.data import Joint, Edge # to be used in 'eval'
+import math
 
 
 def interpolate(args, g_ema, device, mean_latent):
@@ -86,8 +87,8 @@ def sample(args, g_ema, device, mean_latent):
             seeds = (np.random.random(n_motions)*seed_rnd_mult).astype(int)
     else:
         seeds = np.array(args.sample_seeds)
-    if len(seeds) != motions_num:
-        texts *= len(seeds)
+    if len(seeds) != len(texts):
+        texts *= int(math.ceil(len(seeds) / len(texts)))
     generated_motion = pd.DataFrame(index=seeds, columns=['motion', 'W'], dtype=object)
     for i, seed in enumerate(seeds):
         seed2text[seed] = texts[i]
