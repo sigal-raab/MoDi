@@ -15,7 +15,7 @@ from utils.data import calc_bone_lengths
 from utils.data import edge_rot_dict_from_edge_motion_data, anim_from_edge_rot_dict
 from utils.data import to_list_4D, un_normalize
 
-from utils.humanml_utils import HUMANML_JOINT_NAMES
+from utils.humanml_utils import HUMANML_JOINT_NAMES, HumanMLNewConversions
 from t2m.scripts.pos2humanML import Pos2HumnML
 
 
@@ -315,8 +315,9 @@ def motion2humanml_rot(motion_data, humanML_vecs_path, type, edge_rot_dict_gener
                                                                                      edge_rot_dict_general=edge_rot_dict_general)
     data = []
 
-
     pos2hml = Pos2HumnML(humanML_vecs_path)
+    converter = HumanMLNewConversions()
+
 
     # from this point input is a list of edge_rot_dicts
     for i, (edge_rot_dict, frame_mult) in enumerate(zip(edge_rot_dicts, frame_mults)):
@@ -328,54 +329,8 @@ def motion2humanml_rot(motion_data, humanML_vecs_path, type, edge_rot_dict_gener
         else:
             suffix = ''
 
-        # # convert to humanml format
-        # ########################################################
-        # rot_quats = np.array([ i for i in Animation.rotations_global(anim)])
-
-        # rot_data = transforms.quat2repr6d(rot_quats) # remove and added
-        # ric_data = Animation.positions_global(anim) # remove root and added
-        # root_id = 0
-
-        # # remove joints that are not in HUMANML_JOINT_NAMES
-        # to_remove = []
-        # for i in range(len(names)):
-        #     if names[i] not in HUMANML_JOINT_NAMES:
-        #         to_remove.append(i)
-        #     if names[i] == 'Pelvis':
-        #         root_id = i
-        # ric_data = np.delete(ric_data, to_remove, axis=1)
-        # rot_data = np.delete(rot_data, to_remove, axis=1)
-        # rot_quats = np.delete(rot_quats, to_remove, axis=1)
-
-        # root_y = ric_data[:,root_id,1]  
-        # root_linear_velocity = np.concatenate([0,0], ric_data[1:,root_id,::2]-ric_data[:-1,root_id,::2])
-        # root_rot_velocity = 2*(
-        #     rot_quats[:,root_id,0]*rot_quats[:,root_id,2] 
-        #     + rot_quats[:,root_id,1]*rot_quats[:,root_id,3]
-        #     - rot_quats[:,root_id,2]*rot_quats[:,root_id,0]
-        #     - rot_quats[:,root_id,3]*rot_quats[:,root_id,1]
-        # ) # calc of W(y) from https://mariogc.com/post/angular-velocity-quaternions/ 
-
-
-        # local_velocity = np.concatenate([0,0], ric_data[1:]-ric_data[:-1])
-        # foot_contact = np.ones(shape=(64,4))*0.85# from edge_rot_dict['contact'] somehow
-
-        # # remove root
-        # ric_data = np.delete(ric_data, root_id, axis=1)
-        # rot_data = np.delete(rot_data, root_id, axis=1)
-
-        # # is (64x263)
-        # data.append(np.concatenate((
-        #     root_rot_velocity,
-        #     root_linear_velocity,
-        #     root_y,
-        #     ric_data,
-        #     rot_data,
-        #     local_velocity,
-        #     foot_contact
-        #     )))
-        # ########################################################
-    
+        # convert to humanml format
+        ########################################################
         positions = Animation.positions_global(anim) # remove root and added
 
         # remove joints that are not in HUMANML_JOINT_NAMES
@@ -383,11 +338,16 @@ def motion2humanml_rot(motion_data, humanML_vecs_path, type, edge_rot_dict_gener
         for i in range(len(names)):
             if names[i] not in HUMANML_JOINT_NAMES:
                 to_remove.append(i)
-            if names[i] == 'Pelvis':
-                root_id = i
         positions = np.delete(positions, to_remove, axis=1)
 
-        hml, _,_,_ = pos2hml.convert(positions)
+        # reorder
+        reordered_positions = np.zeros_like(positions)
+        for i in range(len(HUMANML_JOINT_NAMES)):
+            reordered_positions[:, i, :] = positions[:, converter.forward[i], :]
+
+        hml, _,_,_ = pos2hml.convert(reordered_positions)
+        ########################################################
+
         data.append(hml)
 
     # (Nx64x263)

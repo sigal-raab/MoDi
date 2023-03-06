@@ -5,10 +5,8 @@ import numpy as np
 import os
 from t2m.common.quaternion import *
 from t2m.t2m_utils.paramUtil import *
-
 import torch
 from tqdm import tqdm
-
 
 class Pos2HumnML:
     example_id = "000021"
@@ -34,8 +32,8 @@ class Pos2HumnML:
 
         self.tgt_skel = Skeleton(self.n_raw_offsets, self.kinematic_chain, 'cpu')
         # (joints_num, 3)
-        self.tgt_offsets = self.tgt_skel.get_offsets_joints(example_data[0])
-        # print(tgt_offsets)
+        self.tgt_offsets = self.tgt_skel.get_offsets_joints(self.example_data[0])
+        #print(tgt_offsets)
 
 
     # positions (batch, joint_num, 3)
@@ -147,6 +145,7 @@ class Pos2HumnML:
 
         cont_6d_params, r_velocity, velocity, r_rot = get_cont6d_params(positions)
         positions = get_rifke(positions)
+
 
         #     trejec = np.cumsum(np.concatenate([np.array([[0, 0, 0]]), velocity], axis=0), axis=0)
         #     r_rotations, r_pos = recover_ric_glo_np(r_velocity, velocity[:, [0, 2]])

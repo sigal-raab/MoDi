@@ -260,7 +260,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                 id = f'g{cluster_label:02d}_{id}'
 
                         # save as humanml
-            hml = motion2humanml(motion_np[i], '/content/drive/MyDrive/MoDi/MoDi2/examples/HumanML_raw/new_joints_vecs',
+            hml = motion2humanml(motion_np[i], '/content/drive/MyDrive/MoDi/MoDi2/examples/HumanML_raw/joints',
                        parents=entity.parents_list, type=args.type, entity=entity.str(),
                        edge_rot_dict_general=edge_rot_dict_general)
             np.save(osp.join(out_path, f'{prefix}{j}_{id}.npy'), hml)
