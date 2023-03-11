@@ -23,7 +23,7 @@ from os.path import join as pjoin
 
 @dataclass
 class DummyArgs():
-    ckpt = '../chk/checkpoint/001999.pt'
+    ckpt = '../chk/077999.pt'
     path = '/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy'
     out_path = ''
 
@@ -75,8 +75,8 @@ device = torch.device('cuda:%d'%device_id if torch.cuda.is_available() else 'cpu
 #torch.cuda.set_device(device_id)
 mm_num_samples = 4
 # mm_num_samples = 0
-mm_num_repeats = 3
-mm_num_times = 10
+mm_num_repeats = 20 # should be mm_num_repeats > mm_num_times
+mm_num_times = 10 # should be mm_num_repeats > mm_num_times
 #diversity_times = 300
 diversity_times = 3
 replication_times = 1

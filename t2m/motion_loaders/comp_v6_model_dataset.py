@@ -221,19 +221,33 @@ class ModiGeneratedDataset(Dataset):
                 mm_motions = []
                 # print(m_lens[0].item(), cap_lens[0].item())
                 for t in range(repeat_times):
-                    # # should be (1 X mov_length X movment)
+                    # should be (1 X mov_length X movment)
                     pred_motions,_ = generate(args, g_ema, args.device, mean_joints, std_joints, entity, [caption[0]])
 
+                    # # find file
+                    # p = '/content/drive/MyDrive/MoDi/MoDi/examples/HumanML_raw'
+
+                    # n = 0
+                    # for fn in os.listdir(os.path.join(p,'texts')):
+                    #     p0=os.path.join(p,'texts',fn)
+                    #     with open(p0, 'r') as f:
+                    #         lines = f.readlines()
+                    #         for line in lines:
+                    #             if line.split('#')[0]==caption[0]:
+                    #                 n=fn[-5]
+
+                    # # load original
+                    # pred_motions = [np.load(os.path.join(p,'new_joint_vecs',f'00000{n}.npy'))]
+
+                    # # load preprocessed and unprocess
                     # from Motion.BVH import load
                     # from Motion.Animation import positions_global
                     # pred_motions = np.array([])
 
-                    # #p = '/Users/uri/Library/CloudStorage/GoogleDrive-urin@mail.tau.ac.il/My Drive/MoDi/MoDi2/examples/HumanML_raw'
-                    # p = '/content/drive/MyDrive/MoDi/MoDi2/examples/HumanML_raw'
-                    # a, n,_ = load(os.path.join(p,'processed',f'00000{i}_joints_1_frames_0.bvh'))
+                    # a, nm,_ = load(os.path.join(p,'processed',f'00000{n}_joints_1_frames_0.bvh'))
                     # pred_motions = positions_global(a)
                     
-                    # pred_motions,_,_,_ = position_to_humanml(pred_motions, n)
+                    # pred_motions,_,_,_ = position_to_humanml(pred_motions, nm)
                     # pred_motions = [pred_motions]
 
                     if t == 0:
