@@ -234,17 +234,17 @@ class ModiGeneratedDataset(Dataset):
                     #         lines = f.readlines()
                     #         for line in lines:
                     #             if line.split('#')[0]==caption[0]:
-                    #                 n=fn[-5]
+                    #                 n=fn[:-4]
 
                     # # load original
-                    # pred_motions = [np.load(os.path.join(p,'new_joint_vecs',f'00000{n}.npy'))]
+                    # pred_motions = [np.load(os.path.join(p,'new_joint_vecs',f'{n}.npy'))]
 
                     # # load preprocessed and unprocess
                     # from Motion.BVH import load
                     # from Motion.Animation import positions_global
                     # pred_motions = np.array([])
 
-                    # a, nm,_ = load(os.path.join(p,'processed',f'00000{n}_joints_1_frames_0.bvh'))
+                    # a, nm,_ = load(os.path.join(p,'processed',f'{n}_joints_1_frames_0.bvh'))
                     # pred_motions = positions_global(a)
                     
                     # pred_motions,_,_,_ = position_to_humanml(pred_motions, nm)
