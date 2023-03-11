@@ -38,6 +38,8 @@ class DummyArgs():
     sample_seeds = None
     no_idle = False
     return_sub_motions = False
+    type='Edge'
+    dataset = 'humanml'
 
 
 args = DummyArgs()
@@ -75,11 +77,12 @@ mm_num_samples = 4
 # mm_num_samples = 0
 mm_num_repeats = 3
 mm_num_times = 10
-diversity_times = 300
+#diversity_times = 300
+diversity_times = 3
 replication_times = 1
-batch_size = 32
+# batch_size = 32
+batch_size = 1
 
-# batch_size = 1
 gt_loader, gt_dataset = get_dataset_motion_loader(dataset_opt_path, batch_size, device)
 wrapper_opt = get_opt(dataset_opt_path, device)
 eval_wrapper = EvaluatorModelWrapper(wrapper_opt)

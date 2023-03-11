@@ -7,15 +7,18 @@ from tqdm import tqdm
 # from t2m.data.dataset import collate_fn
 from dataclasses import dataclass
 from utils.pre_run import load_all_form_checkpoint
-from generate import sample
+# from generate import sample
 
-from utils.visualization import motion2humanml
-from utils.data import motion_from_raw
-from generate import get_gen_mot_np
-
+# from utils.visualization import motion2humanml
+# from utils.data import motion_from_raw
+# from generate import get_gen_mot_np
+from evaluate import generate
+from utils.humanml_utils import position_to_humanml
 # modi genrate for eval
 #from evaluate import generate
 genarate = ()
+
+import os
 
 def build_models(opt):
     if opt.text_enc_mod == 'bigru':
@@ -177,54 +180,6 @@ class CompV6GeneratedDataset(Dataset):
                                      ], axis=0)
         return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens)
     
-    
-    
-    
-# TODO: maybe change this
-def build_evals(opt):
-    if opt.text_enc_mod == 'bigru':
-        text_encoder = TextEncoderBiGRU(word_size=opt.dim_word,
-                                        pos_size=opt.dim_pos_ohot,
-                                        hidden_size=opt.dim_text_hidden,
-                                        device=opt.device)
-        text_size = opt.dim_text_hidden * 2
-    else:
-        raise Exception("Text Encoder Mode not Recognized!!!")
-
-    seq_prior = TextDecoder(text_size=text_size,
-                            input_size=opt.dim_att_vec + opt.dim_movement_latent,
-                            output_size=opt.dim_z,
-                            hidden_size=opt.dim_pri_hidden,
-                            n_layers=opt.n_layers_pri)
-
-
-    seq_decoder = TextVAEDecoder(text_size=text_size,
-                                 input_size=opt.dim_att_vec + opt.dim_z + opt.dim_movement_latent,
-                                 output_size=opt.dim_movement_latent,
-                                 hidden_size=opt.dim_dec_hidden,
-                                 n_layers=opt.n_layers_dec)
-
-    att_layer = AttLayer(query_dim=opt.dim_pos_hidden,
-                         key_dim=text_size,
-                         value_dim=opt.dim_att_vec)
-
-    movement_enc = MovementConvEncoder(opt.dim_pose - 4, opt.dim_movement_enc_hidden, opt.dim_movement_latent)
-    movement_dec = MovementConvDecoder(opt.dim_movement_latent, opt.dim_movement_dec_hidden, opt.dim_pose)
-
-    len_estimator = MotionLenEstimatorBiGRU(opt.dim_word, opt.dim_pos_ohot, 512, opt.num_classes)
-
-    # latent_dis = LatentDis(input_size=opt.dim_z * 2)
-    checkpoints = torch.load(pjoin(opt.checkpoints_dir, opt.dataset_name, 'length_est_bigru', 'model', 'latest.tar'), map_location=opt.device)
-    len_estimator.load_state_dict(checkpoints['estimator'])
-    len_estimator.to(opt.device)
-    len_estimator.eval()
-
-    # return text_encoder, text_decoder, att_layer, vae_pri, vae_dec, vae_pos, motion_dis, movement_dis, latent_dis
-    return text_encoder, seq_prior, seq_decoder, att_layer, movement_enc, movement_dec, len_estimator
-
-
-
-
 
 class ModiGeneratedDataset(Dataset):
 
@@ -232,19 +187,16 @@ class ModiGeneratedDataset(Dataset):
         assert mm_num_samples < len(dataset)
         print(opt.model_dir)
 
+        # LOAD DATASET
         dataloader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=True)
-        # text_enc, seq_pri, seq_dec, att_layer, mov_enc, mov_dec, len_estimator = build_models(opt)
 
         # LOAD MODEL FROM CHECKPOINT
-        
         g_ema, discriminator, checkpoint, entity, mean_joints, std_joints = load_all_form_checkpoint(args.ckpt, args)
-        modelpath = "evaluation/checkpoint_0300_mixamo_acc_0.74_train_test_split_smaller_arch.tar"
 
         with torch.no_grad():
             g_ema.eval()
             mean_latent = g_ema.mean_latent(args.truncation_mean)
             args.truncation = 1
-
 
         generated_motion = []
         mm_generated_motions = []
@@ -252,7 +204,6 @@ class ModiGeneratedDataset(Dataset):
         mm_idxs = np.sort(mm_idxs)
         min_mov_length = 10 if opt.dataset_name == 't2m' else 6
         # print(mm_idxs)
-
 
         with torch.no_grad():
             for i, data in tqdm(enumerate(dataloader)):
@@ -262,10 +213,6 @@ class ModiGeneratedDataset(Dataset):
                 word_emb = word_emb.detach().to(opt.device).float()
                 pos_ohot = pos_ohot.detach().to(opt.device).float()
 
-                # print(cap_lens)
-                # pred_dis = len_estimator(word_emb, pos_ohot, cap_lens)
-                # pred_dis = nn.Softmax(-1)(pred_dis).squeeze()
-
                 mm_num_now = len(mm_generated_motions)
                 is_mm = True if ((mm_num_now < mm_num_samples) and (i == mm_idxs[mm_num_now])) else False
                 # if is_mm:
@@ -274,33 +221,26 @@ class ModiGeneratedDataset(Dataset):
                 mm_motions = []
                 # print(m_lens[0].item(), cap_lens[0].item())
                 for t in range(repeat_times):
-                    # mov_length = torch.multinomial(pred_dis, 1, replacement=True)
-                    # if mov_length < min_mov_length:
-                    #     mov_length = torch.multinomial(pred_dis, 1, replacement=True)
-                    # if mov_length < min_mov_length:
-                    #     mov_length = torch.multinomial(pred_dis, 1, replacement=True)
+                    # # should be (1 X mov_length X movment)
+                    pred_motions,_ = generate(args, g_ema, args.device, mean_joints, std_joints, entity, [caption[0]])
 
-                    # generate motion
-                    # m_lens = mov_length * opt.unit_length
-             
-                    pred_motions, texts = sample(args, g_ema, args.device, mean_latent, [caption[0]])
+                    # from Motion.BVH import load
+                    # from Motion.Animation import positions_global
+                    # pred_motions = np.array([])
 
-                    _, _, _, edge_rot_dict_general = motion_from_raw(args, np.load(args.path, allow_pickle=True))
-                    edge_rot_dict_general['std_tensor'] = edge_rot_dict_general['std_tensor'].cpu()
-                    edge_rot_dict_general['mean_tensor'] = edge_rot_dict_general['mean_tensor'].cpu()
-
-                    motion_np, _ = get_gen_mot_np(args, generated_motion['motion'], mean_joints, std_joints)
-
-                    pred_motions = motion2humanml(motion_np[i], '',
-                       parents=entity.parents_list, type=args.type, entity=entity.str(),
-                       edge_rot_dict_general=edge_rot_dict_general)
-                    # should be (1 X mov_length X movment)
+                    # #p = '/Users/uri/Library/CloudStorage/GoogleDrive-urin@mail.tau.ac.il/My Drive/MoDi/MoDi2/examples/HumanML_raw'
+                    # p = '/content/drive/MyDrive/MoDi/MoDi2/examples/HumanML_raw'
+                    # a, n,_ = load(os.path.join(p,'processed',f'00000{i}_joints_1_frames_0.bvh'))
+                    # pred_motions = positions_global(a)
+                    
+                    # pred_motions,_,_,_ = position_to_humanml(pred_motions, n)
+                    # pred_motions = [pred_motions]
 
                     if t == 0:
                         # print(m_lens)
                         # print(text_data)
-                        sub_dict = {'motion': pred_motions[0].cpu().numpy(),
-                                    'length': len(pred_motions[0][1]) * opt.unit_length,
+                        sub_dict = {'motion': pred_motions[0],
+                                    'length': pred_motions[0].shape[0],
                                     'cap_len': cap_lens[0].item(),
                                     'caption': caption[0],
                                     'tokens': tokens}
@@ -308,8 +248,8 @@ class ModiGeneratedDataset(Dataset):
 
                     if is_mm:
                         mm_motions.append({
-                            'motion': pred_motions[0].cpu().numpy(),
-                            'length': m_lens[0].item()
+                            'motion': pred_motions[0],
+                            'length': pred_motions[0].shape[0]
                         })
                 if is_mm:
                     mm_generated_motions.append({'caption': caption[0],
