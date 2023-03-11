@@ -10,8 +10,9 @@ from Motion.Quaternions import Quaternions
 from Motion import BVH
 from abc import abstractmethod
 import random
+from t2m.t2m_utils.conversions import positions_to_humanml
 
-DATASET_BASE_PATH = r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\HumanML3D"
+DATASET_BASE_PATH = r"/Users/uri/Library/CloudStorage/GoogleDrive-urin@mail.tau.ac.il/My Drive/MoDi/MoDi2/examples/HumanML_raw"
 HUMANML_JOINT_NAMES = [
     'Pelvis',  # 0
     'L_Hip',  # 1
@@ -323,6 +324,23 @@ class HumanMLNewConversions(HumanML2OPConversions):
         self.src_len = 22
         self.dst_len = 22
 
+def position_to_humanml(positions, names):
+    converter = HumanMLNewConversions()
+    # if converted to extended format convert back to humanMl format
+    if len(positions[0,:,0]) > len(HUMANML_JOINT_NAMES):
+        # remove joints that are not in HUMANML_JOINT_NAMES
+        to_remove = []
+        for i in range(len(names)):
+            if names[i] not in HUMANML_JOINT_NAMES:
+                to_remove.append(i)
+        positions = np.delete(positions, to_remove, axis=1)
+
+        # reorder  joints
+        reordered_positions = np.zeros_like(positions)[:,:len(HUMANML_JOINT_NAMES),:]
+        for i in range(len(HUMANML_JOINT_NAMES)):
+            reordered_positions[:, i, :] = positions[:, converter.forward[i], :]
+
+    return positions_to_humanml(reordered_positions)
 
 if __name__ == '__main__':
     src = {(0, 3): (0, 22), (6, 3): (0, 3), (9, 6): (6, 3), (12, 9): (9, 6),
