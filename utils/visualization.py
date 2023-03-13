@@ -15,6 +15,10 @@ from utils.data import calc_bone_lengths
 from utils.data import edge_rot_dict_from_edge_motion_data, anim_from_edge_rot_dict
 from utils.data import to_list_4D, un_normalize
 
+from utils.humanml_utils import HUMANML_JOINT_NAMES, HumanMLNewConversions
+from t2m.scripts.pos2humanML import Pos2HumnML
+
+
 def pose2im_all(all_peaks, H=512, W=512):
     limbSeq = [[1, 2], [2, 3], [3, 4],                       # right arm
                [1, 5], [5, 6], [6, 7],                       # left arm
@@ -286,4 +290,123 @@ def one_motion2bvh(one_motion_data, bvh_file_path, parents, is_openpose=True, na
         os.makedirs(bvh_file_dir)
     BVH.save(bvh_file_path, anim, names[sorted_order])
 
+
+
+def motion2humanml(motion_data, bvh_file_path, parents=None, type=None, entity='Joint', edge_rot_dict_general=None):
+    assert entity in ['Joint', 'Edge']
+    if entity == 'Joint':
+        return motion2humanml_loc(motion_data, bvh_file_path, parents, type)
+    else:
+        return motion2humanml_rot(motion_data, bvh_file_path, type=type, edge_rot_dict_general=edge_rot_dict_general)
+
+
+def motion2humanml_rot(motion_data, humanML_vecs_path, type, edge_rot_dict_general=None):
+
+    if isinstance(motion_data, dict):
+        # input is of type edge_rot_dict (e.g., read from GT file)
+        edge_rot_dicts = [motion_data]
+        frame_mults = [1]
+        is_sub_motion = False
+    else:
+        # input is at the format of an output of the network
+        motion_data = to_list_4D(motion_data)
+        motion_data = un_normalize(motion_data, mean=edge_rot_dict_general['mean'].transpose(0, 2, 1, 3), std=edge_rot_dict_general['std'].transpose(0, 2, 1, 3))
+        edge_rot_dicts, frame_mults, is_sub_motion = edge_rot_dict_from_edge_motion_data(motion_data, type=type,
+                                                                                     edge_rot_dict_general=edge_rot_dict_general)
+    data = []
+
+    pos2hml = Pos2HumnML(humanML_vecs_path)
+    converter = HumanMLNewConversions()
+
+
+    # from this point input is a list of edge_rot_dicts
+    for i, (edge_rot_dict, frame_mult) in enumerate(zip(edge_rot_dicts, frame_mults)):
+        anim, names = anim_from_edge_rot_dict(edge_rot_dict, root_name='Pelvis')
+        if is_sub_motion:
+            suffix = '_{}x{}'.format(edge_rot_dict['rot_edge_no_root'].shape[1]+1, int(edge_rot_dict['rot_edge_no_root'].shape[0]/frame_mult))
+        elif type == 'edit':
+            suffix = '_{:02d}'.format(i)
+        else:
+            suffix = ''
+
+        # convert to humanml format
+        ########################################################
+        positions = Animation.positions_global(anim) # remove root and added
+
+        # remove joints that are not in HUMANML_JOINT_NAMES
+        to_remove = []
+        for i in range(len(names)):
+            if names[i] not in HUMANML_JOINT_NAMES:
+                to_remove.append(i)
+        positions = np.delete(positions, to_remove, axis=1)
+
+        # reorder
+        reordered_positions = np.zeros_like(positions)
+        for i in range(len(HUMANML_JOINT_NAMES)):
+            reordered_positions[:, i, :] = positions[:, converter.forward[i], :]
+
+        hml, _,_,_ = pos2hml.convert(reordered_positions)
+        ########################################################
+
+        data.append(hml)
+
+    # (Nx64x263)
+    return np.array(data)
+
+
+#TODO: this
+def motion2humanml_loc(motion_data, bvh_file_path, parents=None, type=None):
+    raise NotImplemented
+
+    if isinstance(motion_data, list): # saving sub pyramid motions
+        bl_full = calc_bone_lengths(motion_data[-1], parents=Joint.parents_list[-1])
+        for i, sub_motion in enumerate(motion_data):
+            is_openpose = (sub_motion.shape == motion_data[-1].shape)
+            sub_motion = sub_motion[0]  # drop batch dim
+            if type == 'sample' or type =='interp-mix-pyramid':  # displaying sub motions
+                suffix = '_' + str(sub_motion.shape[0]) + 'x' + str(sub_motion.shape[2])
+                sub_bvh_file_path = bvh_file_path.replace('.bvh', suffix+'.bvh')
+
+                # multiply bone length such that bone lengths in all levels are comparable
+                n_joints = sub_motion.shape[0]
+                if n_joints==1:
+                    continue
+                bl_sub_motion = calc_bone_lengths(sub_motion[np.newaxis], parents=parents[i])
+                bl_mult = bl_full['mean'].mean() / bl_sub_motion['mean'].mean()
+                sub_motion = sub_motion * bl_mult
+
+                # repeat frames so the frame number of the sub_motion would be the same as the final one,
+                # in order to make the visualization synchronized
+                frame_mult = int(motion_data[-1].shape[-1] / sub_motion.shape[-1])
+                sub_motion = sub_motion.repeat(frame_mult, axis=2)
+                one_motion2bvh(sub_motion, sub_bvh_file_path, parents=parents[i], is_openpose=is_openpose)
+            elif type == 'edit':
+                sub_bvh_file_path = bvh_file_path.replace('.bvh', '_'+'{:02d}'.format(i)+'.bvh')
+                motion2bvh(sub_motion, sub_bvh_file_path, parents)
+            else:
+                raise('unsupported type for list manipulation')
+    else:
+        if motion_data.ndim == 4:
+            assert motion_data.shape[0] == 1
+            motion_data = motion_data[0]
+        one_motion2bvh(motion_data, bvh_file_path, parents=parents[-1], is_openpose=True)
+
+
+#TODO: this
+def one_motion2humanml(one_motion_data, bvh_file_path, parents, is_openpose=True, names = None, expand = True):
+    raise NotImplemented
+
+    # support non-skel-aware motions with 16 joints
+    if one_motion_data.shape[0] == 16:
+        one_motion_data = one_motion_data[:15]
+
+    one_motion_data = one_motion_data.transpose(2, 0, 1)  # joint, axis, frame  -->   frame, joint, axis
+
+    if expand:
+        one_motion_data, parents, names = expand_topology_joints(one_motion_data, is_openpose, parents, names)
+    anim, sorted_order, _ = IK.animation_from_positions(one_motion_data, parents)
+    bvh_file_dir = osp.split(bvh_file_path)[0]
+    if not osp.exists(bvh_file_dir):
+        os.makedirs(bvh_file_dir)
+    BVH.save(bvh_file_path, anim, names[sorted_order])
 

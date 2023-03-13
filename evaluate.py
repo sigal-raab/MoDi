@@ -20,10 +20,11 @@ from Motion import Animation
 from matplotlib import pyplot as plt
 from generate import get_gen_mot_np, sample
 from utils.pre_run import EvaluateOptions, load_all_form_checkpoint
+from utils.humanml_utils import position_to_humanml
 
 TEST = False
 
-def generate(args, g_ema, device, mean_joints, std_joints, entity):
+def generate(args, g_ema, device, mean_joints, std_joints, entity, texts=None):
 
     # arguments required by generation
     args.sample_seeds = None
@@ -31,6 +32,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
     args.return_sub_motions = False
     args.truncation = 1
     args.truncation_mean = 4096
+
     args.motions = 2000
     if TEST:
         args.motions = 64
@@ -39,7 +41,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
         g_ema.eval()
         mean_latent = g_ema.mean_latent(args.truncation_mean)
         args.truncation = 1
-        generated_motions, texts = sample(args, g_ema, device, mean_latent)
+        generated_motions, texts = sample(args, g_ema, device, mean_latent, texts)
 
     generated_motion = generated_motions.motion
     # convert motion to numpy
@@ -71,6 +73,10 @@ def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general
     if args.dataset == 'mixamo':
         edge_rot_dict_general['offsets_no_root'] /= 100 ## not needed in humanact
 
+    root_name = 'Hips'
+    if args.dataset == 'humanml':
+        root_name = 'Pelvis'
+
     generated_motions = []
 
     # get anim for xyz positions
@@ -78,18 +84,23 @@ def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general
     anim_dicts, frame_mults, is_sub_motion = edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dict_general = edge_rot_dict_general)
 
     for j, (anim_dict, frame_mult) in enumerate(zip(anim_dicts, frame_mults)):
-        anim, names = anim_from_edge_rot_dict(anim_dict, root_name='Hips')
+        anim, names = anim_from_edge_rot_dict(anim_dict, root_name=root_name)
         # compute global positions using anim
         positions = Animation.positions_global(anim)
 
-        # sample joints relevant to 15 joints skeleton
-        positions_15joints = positions[:, [7, 6, 15, 16, 17, 10, 11, 12, 0, 23, 24, 25, 19, 20, 21]] # openpose order R then L
-        positions_15joints = positions_15joints.transpose(1, 2, 0)
-        positions_15joints_oriented = positions_15joints.copy()
-        if args.dataset == 'mixamo':
-            positions_15joints_oriented = positions_15joints_oriented[:, [0, 2, 1]]
-            positions_15joints_oriented[:, 1, :] = -1 * positions_15joints_oriented[:, 1, :]
-        generated_motions.append(positions_15joints_oriented)
+        if args.dataset=='humanml':
+            positions,_,_,_ = position_to_humanml(positions,names)
+            generated_motions.append(positions)
+
+        else:
+            # sample joints relevant to 15 joints skeleton
+            positions_15joints = positions[:, [7, 6, 15, 16, 17, 10, 11, 12, 0, 23, 24, 25, 19, 20, 21]] # openpose order R then L
+            positions_15joints = positions_15joints.transpose(1, 2, 0)
+            positions_15joints_oriented = positions_15joints.copy()
+            if args.dataset == 'mixamo':
+                positions_15joints_oriented = positions_15joints_oriented[:, [0, 2, 1]]
+                positions_15joints_oriented[:, 1, :] = -1 * positions_15joints_oriented[:, 1, :]
+            generated_motions.append(positions_15joints_oriented)
 
     generated_motions = np.asarray(generated_motions)
     return generated_motions

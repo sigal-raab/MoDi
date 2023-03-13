@@ -10,6 +10,7 @@ from Motion.Quaternions import Quaternions
 from Motion import BVH
 from abc import abstractmethod
 import random
+from t2m.t2m_utils.conversions import positions_to_humanml
 import tqdm
 from sentence_transformers import SentenceTransformer
 
@@ -325,6 +326,23 @@ class HumanMLNewConversions(HumanML2OPConversions):
         self.src_len = 22
         self.dst_len = 22
 
+def position_to_humanml(positions, names):
+    converter = HumanMLNewConversions()
+    # if converted to extended format convert back to humanMl format
+    if len(positions[0,:,0]) > len(HUMANML_JOINT_NAMES):
+        # remove joints that are not in HUMANML_JOINT_NAMES
+        to_remove = []
+        for i in range(len(names)):
+            if names[i] not in HUMANML_JOINT_NAMES:
+                to_remove.append(i)
+        positions = np.delete(positions, to_remove, axis=1)
+
+        # reorder  joints
+        reordered_positions = np.zeros_like(positions)[:,:len(HUMANML_JOINT_NAMES),:]
+        for i in range(len(HUMANML_JOINT_NAMES)):
+            reordered_positions[:, i, :] = positions[:, converter.forward[i], :]
+
+    return positions_to_humanml(reordered_positions)
 
 def calc_text_std_mean(texts_root, texts_ids_path):
     text_encoder = SentenceTransformer('all-MiniLM-L6-v2').to("cuda")

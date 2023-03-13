@@ -6,7 +6,7 @@ import pandas as pd
 
 import torch
 import numpy as np
-from utils.visualization import motion2fig, motion2bvh
+from utils.visualization import motion2fig, motion2bvh, motion2humanml
 import matplotlib.pyplot as plt
 import sys as _sys
 from utils.data import motion_from_raw, to_cpu
@@ -59,16 +59,20 @@ def z_from_seed(args, seed, device):
     return z
 
 
-def sample(args, g_ema, device, mean_latent):
+def sample(args, g_ema, device, mean_latent,texts=None):
     print('Sampling...')
 
-    if args.text_path is None:
-        motions_num = args.motions
-        texts = [""] * motions_num
+    if texts is None:
+        if args.text_path is None:
+            motions_num = args.motions
+            texts = [""] * motions_num
+        else:
+            with open(args.text_path) as text_file:
+                texts = text_file.read().splitlines()
+            motions_num = len(texts)
     else:
-        with open(args.text_path) as text_file:
-            texts = text_file.read().splitlines()
         motions_num = len(texts)
+
 
     seed2text = {}
     text_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -255,6 +259,13 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                 cluster_label = generated_motion.cluster_label[idx]
                 cluster_label = torch.argmax(cluster_label).item()
                 id = f'g{cluster_label:02d}_{id}'
+
+                        # save as humanml
+            hml = motion2humanml(motion_np[i], '/content/drive/MyDrive/MoDi/MoDi2/examples/HumanML_raw/joints',
+                       parents=entity.parents_list, type=args.type, entity=entity.str(),
+                       edge_rot_dict_general=edge_rot_dict_general)
+            np.save(osp.join(out_path, f'{prefix}{j}_{id}.npy'), hml)
+            
             motion2bvh(motion_np[j], osp.join(out_path, f'{prefix}{j}_{id}.bvh'),
                        parents=entity.parents_list, type=args.type, entity=entity.str(),
                        edge_rot_dict_general=edge_rot_dict_general)
