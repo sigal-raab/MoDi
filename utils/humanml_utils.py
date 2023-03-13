@@ -10,6 +10,8 @@ from Motion.Quaternions import Quaternions
 from Motion import BVH
 from abc import abstractmethod
 import random
+import tqdm
+from sentence_transformers import SentenceTransformer
 
 DATASET_BASE_PATH = r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\HumanML3D"
 HUMANML_JOINT_NAMES = [
@@ -324,14 +326,35 @@ class HumanMLNewConversions(HumanML2OPConversions):
         self.dst_len = 22
 
 
+def calc_text_std_mean(texts_root, texts_ids_path):
+    text_encoder = SentenceTransformer('all-MiniLM-L6-v2').to("cuda")
+    sr = SampleReader()
+    all_texts = []
+    with open(texts_ids_path) as texts_reader:
+        sample_ids = texts_reader.read().splitlines()
+    for sample_id in tqdm.tqdm(sample_ids):
+        if sample_id.startswith('M'):
+            continue  # we don't want duplicates
+        texts = sr.get_texts(os.path.join(texts_root, sample_id + '.txt'))
+        for text in texts:
+            all_texts.append(text)
+    all_embeddings = torch.from_numpy(text_encoder.encode(all_texts))
+    return torch.std_mean(all_embeddings)
+
+
 if __name__ == '__main__':
-    src = {(0, 3): (0, 22), (6, 3): (0, 3), (9, 6): (6, 3), (12, 9): (9, 6),
-                           (15, 12): (12, 9), (9, 14): (9, 6), (17, 14): (9, 14), (17, 19): (17, 14),
-                           (19, 21): (17, 19), (9, 13): (9, 6), (16, 13): (9, 13), (16, 18): (16, 13),
-                           (18, 20): (16, 18), (0, 2): (0, 22), (2, 5): (0, 2), (5, 8): (2, 5), (8, 11): (5, 8),
-                           (0, 1): (0, 22), (1, 4): (0, 1), (4, 7): (1, 4), (7, 10): (4, 7)}
-    converter = HumanMLNewConversions()
-    print(converter.openpose_tuple_dict_to_humanml(src))
+    # src = {(0, 3): (0, 22), (6, 3): (0, 3), (9, 6): (6, 3), (12, 9): (9, 6),
+    #                        (15, 12): (12, 9), (9, 14): (9, 6), (17, 14): (9, 14), (17, 19): (17, 14),
+    #                        (19, 21): (17, 19), (9, 13): (9, 6), (16, 13): (9, 13), (16, 18): (16, 13),
+    #                        (18, 20): (16, 18), (0, 2): (0, 22), (2, 5): (0, 2), (5, 8): (2, 5), (8, 11): (5, 8),
+    #                        (0, 1): (0, 22), (1, 4): (0, 1), (4, 7): (1, 4), (7, 10): (4, 7)}
+    # converter = HumanMLNewConversions()
+    # print(converter.openpose_tuple_dict_to_humanml(src))
+
+    texts_ids_file_path = r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\HumanML3D\train.txt"
+    texts_root_path = r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\HumanML3D\texts"
+    std_mean = calc_text_std_mean(texts_root_path, texts_ids_file_path)
+    print('std =', std_mean[0], 'mean =', std_mean[1])
 
     # print(SampleReader.get_texts(0))
 

@@ -159,24 +159,24 @@ def average_contact_ratio(motion):
     return predicted_foot_contact.mean(axis=(1, 2))
 
 
-def make_noise(batch, latent_dim, n_noise, device):
+def make_noise(batch, latent_dim, n_noise, device, std_dev=1.0):
     if n_noise == 1:
-        return torch.randn(batch, latent_dim, device=device)
+        return torch.randn(batch, latent_dim, device=device) * std_dev
 
-    noises = torch.randn(n_noise, batch, latent_dim, device=device).unbind(0)
+    noises = (torch.randn(n_noise, batch, latent_dim, device=device) * std_dev).unbind(0)
 
     return noises
 
 
-def mixing_noise(batch, latent_dim, prob, device):
+def mixing_noise(batch, latent_dim, prob, device, std_dev=1.0):
     """ Genereate one or two noise arrays, depending on prob.
         one array: network will generate one W
         two arrays: network will generate two Ws and mix them """
     if prob > 0 and random.random() < prob:
-        return make_noise(batch, latent_dim, 2, device)
+        return make_noise(batch, latent_dim, 2, device, std_dev)
 
     else:
-        return [make_noise(batch, latent_dim, 1, device)]
+        return [make_noise(batch, latent_dim, 1, device, std_dev)]
 
 
 def set_grad_none(model, targets):
@@ -185,10 +185,18 @@ def set_grad_none(model, targets):
             p.grad = None
 
 
+def get_text_embeddings(args, motion_descriptions, label_ids, size, text_model, device):
+    """retrieves <size> text embeddings from the motion_descriptions[label_ids]"""
+    texts = [random.choice(motion_descriptions[j]) for j in random.choices(label_ids, k=size)]
+    masks = np.random.binomial(1, args.mask_rate, size=size)
+    masked_texts = ["" if masks[j] else texts[j] for j in range(size)]
+    return torch.tensor(text_model.encode(masked_texts), device=device), masked_texts
+
+
 def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
           animations_output_folder, images_output_folder, text_model, motion_descriptions, mean_joints=None,
           std_joints=None,
-          gt_bone_lengths=None, edge_rot_dict_general=None):
+          gt_bone_lengths=None, edge_rot_dict_general=None, noise_std_dev=1.0):
     loader = sample_data(loader)
 
     pbar = range(args.iter)
@@ -238,12 +246,10 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(generator, False)
         requires_grad(discriminator, True)
 
-        # texts_1 = [random.choice(motion_descriptions[j]) for j in label_ids]
-        texts_1 = [motion_descriptions[j][0] for j in label_ids]
-        texts_embeddings_1 = torch.tensor(text_model.encode(texts_1))
+        texts_embeddings_1, _ = get_text_embeddings(args, motion_descriptions, label_ids, args.batch, text_model, device)
 
         # noise = mixing_noise(args.batch, args.latent - texts_embeddings_1.shape[1], args.mixing, device)
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+        noise = mixing_noise(args.batch, args.latent, args.mixing, device, noise_std_dev)
 
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True, text_embeddings=texts_embeddings_1)
 
@@ -279,10 +285,9 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(generator, True)
         requires_grad(discriminator, False)
 
-        texts_2 = [random.choice(motion_descriptions[j]) for j in label_ids]
-        texts_embeddings_2 = torch.tensor(text_model.encode(texts_2))
+        texts_embeddings_2, texts_2 = get_text_embeddings(args, motion_descriptions, label_ids, args.batch, text_model, device)
         # noise = mixing_noise(args.batch, args.latent - texts_embeddings_2.shape[1], args.mixing, device)
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+        noise = mixing_noise(args.batch, args.latent, args.mixing, device, noise_std_dev)
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True, text_embeddings=texts_embeddings_2,
                                                        return_sub_motions=args.return_sub_motions)
         fake_pred = discriminator(fake_img, texts_embeddings_2)
@@ -311,11 +316,10 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         if g_regularize:
             path_batch_size = max(1, args.batch // args.path_batch_shrink)
 
-            texts_3 = [random.choice(motion_descriptions[j]) for j in random.choices(label_ids, k=path_batch_size)]
-            texts_embeddings_3 = torch.tensor(text_model.encode(texts_3))
+            texts_embeddings_3, _ = get_text_embeddings(args, motion_descriptions, label_ids, path_batch_size, text_model, device)
 
             # noise = mixing_noise(path_batch_size, args.latent - texts_embeddings_3.shape[1], args.mixing, device)
-            noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
+            noise = mixing_noise(path_batch_size, args.latent, args.mixing, device, noise_std_dev)
             fake_img_path, latents, _ = generator(noise, return_latents=True, text_embeddings=texts_embeddings_3)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
@@ -595,10 +599,11 @@ def main(args_not_parsed):
         drop_last=True,
     )
     text_encoder = SentenceTransformer('all-MiniLM-L6-v2').to(device)
+    text_std_dev = 0.0510  # obtained from utils.humanml_utils.calc_text_std_mean
 
     train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, logger, entity,
           animations_output_folder, images_output_folder, text_encoder, motion_descriptions, mean_joints, std_joints,
-          gt_bone_lengths, edge_rot_dict_general)
+          gt_bone_lengths, edge_rot_dict_general, noise_std_dev=text_std_dev)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from utils.data import Joint, Edge # to be used in 'eval'
 import math
 
 
-def interpolate(args, g_ema, device, mean_latent):
+def interpolate(args, g_ema, device, mean_latent, noise_std_dev=1.0):
     print('Interpolating...')
     num_interp = args.motions
     for interp_seeds in args.interp_seeds:
@@ -27,12 +27,12 @@ def interpolate(args, g_ema, device, mean_latent):
         seed_to = None if len(interp_seeds) < 2 else interp_seeds[1]
 
         rnd_generator = torch.Generator(device=device).manual_seed(seed_from)
-        sample_z_from = torch.randn(1, args.latent, device=device, generator=rnd_generator)
+        sample_z_from = torch.randn(1, args.latent, device=device, generator=rnd_generator) * args.std_dev
         W_from = g_ema.get_latent(sample_z_from)
 
         if seed_to is not None:
             rnd_generator = torch.Generator(device=device).manual_seed(seed_to)
-            sample_z_to = torch.randn(1, args.latent, device=device, generator=rnd_generator)
+            sample_z_to = torch.randn(1, args.latent, device=device, generator=rnd_generator) * args.std_dev
             W_to = g_ema.get_latent(sample_z_to)
         else:
             W_to = mean_latent
@@ -55,7 +55,7 @@ def interpolate(args, g_ema, device, mean_latent):
 
 def z_from_seed(args, seed, device):
     rnd_generator = torch.Generator(device=device).manual_seed(seed)
-    z = torch.randn(1, args.latent, device=device, generator=rnd_generator)
+    z = torch.randn(1, args.latent, device=device, generator=rnd_generator) * args.std_dev
     return z
 
 
@@ -95,8 +95,8 @@ def sample(args, g_ema, device, mean_latent):
         rnd_generator = torch.Generator(device=device).manual_seed(int(seed))
 
         text_embedding = torch.tensor(text_model.encode(texts[i]))[None, :].to(device)
-        # sample_z = torch.randn(1, args.latent - text_embedding.shape[1], device=device, generator=rnd_generator)
-        sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator)
+        # sample_z = torch.randn(1, args.latent - text_embedding.shape[1], device=device, generator=rnd_generator) * args.std_dev
+        sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator) * args.std_dev
         motion, W, _ = g_ema(
             [sample_z], truncation=args.truncation, truncation_latent=mean_latent,
             return_sub_motions=args.return_sub_motions, return_latents=True, text_embeddings=text_embedding)
