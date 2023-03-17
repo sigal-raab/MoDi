@@ -1,4 +1,4 @@
-from t2m.data.dataset import Text2MotionDatasetV2, collate_fn
+from t2m.data.dataset import Text2MotionDatasetV2, collate_fn, MoDiDataset
 from t2m.t2m_utils.word_vectorizer import WordVectorizer
 import numpy as np
 from os.path import join as pjoin
@@ -18,6 +18,7 @@ def get_dataset_motion_loader(opt_path, batch_size, device):
         w_vectorizer = WordVectorizer('./t2m/glove', 'our_vab')
         split_file = pjoin(opt.data_root, 'test.txt')
         dataset = Text2MotionDatasetV2(opt, mean, std, split_file, w_vectorizer)
+        # dataset = MoDiDataset(opt, mean, std, split_file, w_vectorizer)
         dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4, drop_last=True,
                                 collate_fn=collate_fn, shuffle=True)
     else:

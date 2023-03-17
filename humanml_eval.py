@@ -1,6 +1,38 @@
 from t2m.final_evaluations import *
 from dataclasses import dataclass
 
+from Motion.BVH import load as bvh_load
+from Motion.Animation import positions_global
+from utils.humanml_utils import position_to_humanml
+import numpy as np
+from os.path import join as pjoin
+from os import mkdir, rmdir
+
+def create_test_data(in_folder_path, out_path, name_file, save_files=True, already_processed=True):
+    names = []
+    with open(name_file) as f:
+        names = f.readlines()
+
+    if not already_processed:
+        #TODO: preprocess all npy files without changing length or spliting
+        mkdir(pjoin(out_path,'temp'))
+
+
+    animations = []
+    for name in names:
+        a, nm,_ = bvh_load(
+                    pjoin(processed_folder_path, f'{name}_joints_1_frames_0.bvh')
+                    )
+        motion,_,_,_ = position_to_humanml(positions_global(a), nm)
+        if save_files:
+            np.save(pjoin(out_path,name,'.npy'))
+        animations.append(motion)
+
+    np.save(pjoin(out_path,'std.npy',np.std(animations))
+    np.save(pjoin(out_path,'mean.npy',np.mean(animations))
+
+
+
 
 if __name__ == '__main__':
     evaluation(log_file)

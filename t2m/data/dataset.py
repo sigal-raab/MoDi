@@ -10,6 +10,8 @@ import spacy
 
 from Motion.BVH import load as bvh_load
 from Motion.Animation import positions_global
+from utils.humanml_utils import position_to_humanml
+
 
 from torch.utils.data._utils.collate import default_collate
 
@@ -371,7 +373,7 @@ class MoDiDataset(data.Dataset):
                 a, nm,_ = bvh_load(
                     pjoin(opt.data_root, 'processed', f'{name}_joints_1_frames_0.bvh')
                     )
-                motion,_,_,_ = positions_global(positions_global(a), nm)
+                motion,_,_,_ = position_to_humanml(positions_global(a), nm)
 
                 if (len(motion)) < min_motion_len or (len(motion) >= 200):
                     continue
