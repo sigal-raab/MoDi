@@ -8,6 +8,7 @@ from tqdm import tqdm
 from dataclasses import dataclass
 from utils.pre_run import load_all_form_checkpoint
 # from generate import sample
+import random
 
 # from utils.visualization import motion2humanml
 # from utils.data import motion_from_raw
@@ -183,7 +184,7 @@ def build_models(opt):
 
 class ModiGeneratedDataset(Dataset):
 
-    def __init__(self, opt, dataset, w_vectorizer, mm_num_samples, mm_num_repeats, args):
+    def __init__(self, opt, dataset, w_vectorizer, mm_num_samples, mm_num_repeats, args, mean, std):
         assert mm_num_samples < len(dataset)
         print(opt.model_dir)
 
@@ -280,6 +281,8 @@ class ModiGeneratedDataset(Dataset):
         # print(len(mm_generated_motions))
         self.opt = opt
         self.w_vectorizer = w_vectorizer
+        self.mean = mean
+        self.std = std
 
 
 
@@ -300,6 +303,24 @@ class ModiGeneratedDataset(Dataset):
             word_embeddings.append(word_emb[None, :])
         pos_one_hots = np.concatenate(pos_one_hots, axis=0)
         word_embeddings = np.concatenate(word_embeddings, axis=0)
+
+        ''' humanml eval preproccess '''
+        # Crop the motions in to times of 4, and introduce small variations
+        if self.opt.unit_length < 10:
+            coin2 = np.random.choice(['single', 'single', 'double'])
+        else:
+            coin2 = 'single'
+
+        if coin2 == 'double':
+            m_length = (m_length // self.opt.unit_length - 1) * self.opt.unit_length
+        elif coin2 == 'single':
+            m_length = (m_length // self.opt.unit_length) * self.opt.unit_length
+        idx = random.randint(0, len(motion) - m_length)
+        motion = motion[idx:idx+m_length]
+
+        "Z Normalization"
+        motion = (motion - self.mean) / self.std
+
 
         if m_length < self.opt.max_motion_length:
             motion = np.concatenate([motion,

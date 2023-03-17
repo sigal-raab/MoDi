@@ -5,6 +5,7 @@ from t2m.motion_loaders.comp_v6_model_dataset import ModiGeneratedDataset
 from t2m.t2m_utils.word_vectorizer import WordVectorizer
 import numpy as np
 from torch.utils.data._utils.collate import default_collate
+from os.path import join as pjoin
 
 
 def collate_fn(batch):
@@ -82,9 +83,10 @@ def get_modi_loader(opt_path, batch_size, ground_truth_dataset, mm_num_samples, 
         raise KeyError('Dataset not recognized!!')
     print('Generating %s ...' % opt.name)
 
-    dataset = ModiGeneratedDataset(opt, ground_truth_dataset, w_vectorizer, mm_num_samples, mm_num_repeats, args)
+    mean = np.load(pjoin(opt.meta_dir, 'mean.npy'))
+    std = np.load(pjoin(opt.meta_dir, 'std.npy'))
 
-
+    dataset = ModiGeneratedDataset(opt, ground_truth_dataset, w_vectorizer, mm_num_samples, mm_num_repeats, args, mean, std)
     mm_dataset = MMGeneratedDataset(opt, dataset, w_vectorizer)
 
     motion_loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, drop_last=True, num_workers=4)
