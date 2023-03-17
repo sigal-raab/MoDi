@@ -537,7 +537,9 @@ class Generator(nn.Module):
 
         return latent
 
-    def get_latent(self, input):
+    def get_latent(self, input, text_embeddings=None):
+        if text_embeddings is not None:
+            input = torch.cat([input, text_embeddings], 1)
         return self.style(input)
 
     def forward(

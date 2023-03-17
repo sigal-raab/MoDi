@@ -1,26 +1,8 @@
 from t2m.final_evaluations import *
 from dataclasses import dataclass
 
-@dataclass
-class DummyArgs():
-    ckpt = '../chk/checkpoint/001999.pt'
-    path = '/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy'
-    out_path = ''
 
-    device_id = 3
-    device = torch.device('cuda:%d'%device_id if torch.cuda.is_available() else 'cpu')
-
-    motions=1 # for 1 motion for each sentence
-    criteria = 'torch.nn.MSELoss()'
-    truncation =1
-    truncation_mean = 4096
-    simple_idx = 0
-    sample_seeds = None
-    no_idle = False
-    return_sub_motions = False
-
-
-if __name__=='__main__':
+if __name__ == '__main__':
     evaluation(log_file)
 
     # args = DummyArgs()

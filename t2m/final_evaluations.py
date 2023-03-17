@@ -2,7 +2,8 @@ from datetime import datetime
 import numpy as np
 import torch
 from t2m.motion_loaders.dataset_motion_loader import get_dataset_motion_loader
-from t2m.motion_loaders.model_motion_loaders import get_motion_loader, get_modi_loader
+from t2m.motion_loaders.model_motion_loaders import get_modi_loader
+# from t2m.motion_loaders.model_motion_loaders import get_motion_loader, get_modi_loader
 from t2m.t2m_utils.get_opt import get_opt
 from t2m.t2m_utils.metrics import *
 from t2m.networks.evaluator_wrapper import EvaluatorModelWrapper
@@ -22,24 +23,28 @@ from os.path import join as pjoin
 ###### idk globals
 
 @dataclass
-class DummyArgs():
-    ckpt = '../chk/077999.pt'
-    path = '/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy'
+class DummyArgs:
+    # TODO: Change these
+    ckpt = r"D:\Documents\University\DeepGraphicsWorkshop\outputs\train_stddev_finetune_from_30k\checkpoint\059999.pt"
+    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test\edge_rot_joints_1_frames_64.npy"
     out_path = ''
+
+    std_dev = 0.0510
 
     device_id = 0
     device = torch.device('cuda:%d'%device_id if torch.cuda.is_available() else 'cpu')
 
-    motions=1 # for 1 motion for each sentence
+    motions = 1 # for 1 motion for each sentence
     criteria = 'torch.nn.MSELoss()'
-    truncation =1
+    truncation = 1
     truncation_mean = 4096
     simple_idx = 0
     sample_seeds = None
     no_idle = False
     return_sub_motions = False
-    type='Edge'
+    type = 'Edge'
     dataset = 'humanml'
+    batch_size = 256
 
 
 args = DummyArgs()
@@ -60,7 +65,7 @@ eval_motion_loaders = {
     'MoDi': lambda: get_modi_loader(
         './t2m/checkpoints/t2m/Comp_v6_KLD01/opt.txt', # keep this for other options
         batch_size, gt_dataset, mm_num_samples, mm_num_repeats, device,
-        args=args # add dummyy args here
+        args=args  # add dummy args here
     )
     ################
     ## KIT Dataset##
@@ -75,13 +80,13 @@ device = torch.device('cuda:%d'%device_id if torch.cuda.is_available() else 'cpu
 #torch.cuda.set_device(device_id)
 mm_num_samples = 4
 # mm_num_samples = 0
-mm_num_repeats = 20 # should be mm_num_repeats > mm_num_times
-mm_num_times = 10 # should be mm_num_repeats > mm_num_times
-#diversity_times = 300
+mm_num_repeats = 20  # should be mm_num_repeats > mm_num_times
+mm_num_times = 10  # should be mm_num_repeats > mm_num_times
+# diversity_times = 300
 diversity_times = 3
 replication_times = 1
-# batch_size = 32
-batch_size = 1
+batch_size = 256
+# batch_size = 16
 
 gt_loader, gt_dataset = get_dataset_motion_loader(dataset_opt_path, batch_size, device)
 wrapper_opt = get_opt(dataset_opt_path, device)

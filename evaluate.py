@@ -24,6 +24,7 @@ from utils.humanml_utils import position_to_humanml
 
 TEST = False
 
+
 def generate(args, g_ema, device, mean_joints, std_joints, entity, texts=None):
 
     # arguments required by generation

@@ -154,6 +154,7 @@ class GenerateOptions(TestBaseOptions):
         parser.add_argument('--text_path', type=str, help='Path to texts to generate', default=None)
         parser.add_argument('--std_dev', default=1.0, type=float,
                             help='The std_dev to use for the noise (should be the same as the text embeddings)')
+        parser.add_argument('--cfg', default=None, type=float, help="cfg in latent space")
 class EvaluateOptions(TestBaseOptions):
     def __init__(self):
         super().__init__()

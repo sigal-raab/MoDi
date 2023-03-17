@@ -1,29 +1,29 @@
 ==================== Replication 0 ====================
-Time: 2023-03-11 11:24:49.646598
----> [ground truth] Matching Score: 2.0444
----> [ground truth] R_precision: (top 1): 1.0000 
----> [MoDi] Matching Score: 10.2950
----> [MoDi] R_precision: (top 1): 1.0000 
-Time: 2023-03-11 11:24:59.677410
----> [ground truth] FID: 0.0863
----> [MoDi] FID: 149.5147
-Time: 2023-03-11 11:25:06.545289
----> [ground truth] Diversity: 8.6903
----> [MoDi] Diversity: 1.0718
-Time: 2023-03-11 11:25:06.563811
+Time: 2023-03-14 00:48:32.122825
+---> [ground truth] Matching Score: 2.9746
+---> [ground truth] R_precision: (top 1): 0.1691 (top 2): 0.2893 (top 3): 0.3715 
+---> [MoDi] Matching Score: 10.4882
+---> [MoDi] R_precision: (top 1): 0.0043 (top 2): 0.0087 (top 3): 0.0143 
+Time: 2023-03-14 00:55:06.036365
+---> [ground truth] FID: 0.0018
+---> [MoDi] FID: 116.3841
+Time: 2023-03-14 00:58:18.827649
+---> [ground truth] Diversity: 12.2047
+---> [MoDi] Diversity: 1.4250
+Time: 2023-03-14 00:58:18.828647
 ---> [MoDi] Multimodality: 0.0000
 !!! DONE !!!
 ========== Matching Score Summary ==========
----> [ground truth] Mean: 2.0444 CInterval: 0.0000
----> [MoDi] Mean: 10.2950 CInterval: 0.0000
+---> [ground truth] Mean: 2.9746 CInterval: 0.0000
+---> [MoDi] Mean: 10.4882 CInterval: 0.0000
 ========== R_precision Summary ==========
----> [ground truth](top 1) Mean: 1.0000 CInt: 0.0000;
----> [MoDi](top 1) Mean: 1.0000 CInt: 0.0000;
+---> [ground truth](top 1) Mean: 0.1691 CInt: 0.0000;(top 2) Mean: 0.2893 CInt: 0.0000;(top 3) Mean: 0.3715 CInt: 0.0000;
+---> [MoDi](top 1) Mean: 0.0043 CInt: 0.0000;(top 2) Mean: 0.0087 CInt: 0.0000;(top 3) Mean: 0.0143 CInt: 0.0000;
 ========== FID Summary ==========
----> [ground truth] Mean: 0.0863 CInterval: 0.0000
----> [MoDi] Mean: 149.5147 CInterval: 0.0000
+---> [ground truth] Mean: 0.0018 CInterval: 0.0000
+---> [MoDi] Mean: 116.3841 CInterval: 0.0000
 ========== Diversity Summary ==========
----> [ground truth] Mean: 8.6903 CInterval: 0.0000
----> [MoDi] Mean: 1.0718 CInterval: 0.0000
+---> [ground truth] Mean: 12.2047 CInterval: 0.0000
+---> [MoDi] Mean: 1.4250 CInterval: 0.0000
 ========== MultiModality Summary ==========
 ---> [MoDi] Mean: 0.0000 CInterval: 0.0000

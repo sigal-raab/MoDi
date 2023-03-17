@@ -17,8 +17,8 @@ def location(horiz_loc, vert_loc, entity):
 
 scale_factor = 3
 
-base_path = r'D:\Documents\University\DeepGraphicsWorkshop\git\MoDi\results'  # '<type the path to your models>'               # example: '/home/username/train_outputs'
-cur_path = ''  #'<type the rest of the path>'  # example: 'experiment_name.362db4a171934333bea96e9c10712d95/models/079999_files/22_06_16_15_10_sample_10')'
+base_path = r"D:\Documents\University\DeepGraphicsWorkshop\results"  # '<type the path to your models>'               # example: '/home/username/train_outputs'
+cur_path = r"stddev_generations"  #'<type the rest of the path>'  # example: 'experiment_name.362db4a171934333bea96e9c10712d95/models/079999_files/22_06_16_15_10_sample_10')'
 path = osp.join(base_path, cur_path)
 files = glob.glob(osp.join(path, 'generated_*.bvh'))
 files = [osp.basename(file) for file in files if 'fixed' not in file]  # use only file name without path

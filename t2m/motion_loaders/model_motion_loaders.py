@@ -1,6 +1,7 @@
 from torch.utils.data import DataLoader, Dataset
 from t2m.t2m_utils.get_opt import get_opt
-from t2m.motion_loaders.comp_v6_model_dataset import CompV6GeneratedDataset, ModiGeneratedDataset
+from t2m.motion_loaders.comp_v6_model_dataset import ModiGeneratedDataset
+# from t2m.motion_loaders.comp_v6_model_dataset import CompV6GeneratedDataset, ModiGeneratedDataset
 from t2m.t2m_utils.word_vectorizer import WordVectorizer
 import numpy as np
 from torch.utils.data._utils.collate import default_collate
@@ -46,32 +47,31 @@ class MMGeneratedDataset(Dataset):
 
 
 
-def get_motion_loader(opt_path, batch_size, ground_truth_dataset, mm_num_samples, mm_num_repeats, device):
-    opt = get_opt(opt_path, device)
+# def get_motion_loader(opt_path, batch_size, ground_truth_dataset, mm_num_samples, mm_num_repeats, device):
+#     opt = get_opt(opt_path, device)
+#
+#     # Currently the configurations of two datasets are almost the same
+#     if opt.dataset_name == 't2m' or opt.dataset_name == 'kit':
+#         w_vectorizer = WordVectorizer('./glove', 'our_vab')
+#     else:
+#         raise KeyError('Dataset not recognized!!')
+#     print('Generating %s ...' % opt.name)
+#
+#     if 'v6' in opt.name:
+#         dataset = CompV6GeneratedDataset(opt, ground_truth_dataset, w_vectorizer, mm_num_samples, mm_num_repeats)
+#     else:
+#         raise KeyError('Dataset not recognized!!')
+#
+#     mm_dataset = MMGeneratedDataset(opt, dataset, w_vectorizer)
+#
+#     motion_loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, drop_last=True, num_workers=4)
+#     mm_motion_loader = DataLoader(mm_dataset, batch_size=1, num_workers=1)
+#
+#     print('Generated Dataset Loading Completed!!!')
+#
+#     return motion_loader, mm_motion_loader
 
-    # Currently the configurations of two datasets are almost the same
-    if opt.dataset_name == 't2m' or opt.dataset_name == 'kit':
-        w_vectorizer = WordVectorizer('./glove', 'our_vab')
-    else:
-        raise KeyError('Dataset not recognized!!')
-    print('Generating %s ...' % opt.name)
 
-    if 'v6' in opt.name:
-        dataset = CompV6GeneratedDataset(opt, ground_truth_dataset, w_vectorizer, mm_num_samples, mm_num_repeats)
-    else:
-        raise KeyError('Dataset not recognized!!')
-
-    mm_dataset = MMGeneratedDataset(opt, dataset, w_vectorizer)
-
-    motion_loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, drop_last=True, num_workers=4)
-    mm_motion_loader = DataLoader(mm_dataset, batch_size=1, num_workers=1)
-
-    print('Generated Dataset Loading Completed!!!')
-
-    return motion_loader, mm_motion_loader
-
-
-# TODO: change this
 def get_modi_loader(opt_path, batch_size, ground_truth_dataset, mm_num_samples, mm_num_repeats, device, args):
     opt = get_opt(opt_path, device)
 

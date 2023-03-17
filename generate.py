@@ -59,8 +59,9 @@ def z_from_seed(args, seed, device):
     return z
 
 
-def sample(args, g_ema, device, mean_latent,texts=None):
-    print('Sampling...')
+def sample(args, g_ema, device, mean_latent, texts=None, verbose=False):
+    if verbose:
+        print('Sampling...')
 
     if texts is None:
         if args.text_path is None:
@@ -73,10 +74,9 @@ def sample(args, g_ema, device, mean_latent,texts=None):
     else:
         motions_num = len(texts)
 
-
     seed2text = {}
     text_model = SentenceTransformer('all-MiniLM-L6-v2')
-
+    blank_embedding = torch.tensor(text_model.encode(""))[None, :].to(device)
 
     seed_rnd_mult = motions_num*10000
     if args.sample_seeds is None:
@@ -99,11 +99,18 @@ def sample(args, g_ema, device, mean_latent,texts=None):
         rnd_generator = torch.Generator(device=device).manual_seed(int(seed))
 
         text_embedding = torch.tensor(text_model.encode(texts[i]))[None, :].to(device)
-        # sample_z = torch.randn(1, args.latent - text_embedding.shape[1], device=device, generator=rnd_generator) * args.std_dev
         sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator) * args.std_dev
-        motion, W, _ = g_ema(
-            [sample_z], truncation=args.truncation, truncation_latent=mean_latent,
-            return_sub_motions=args.return_sub_motions, return_latents=True, text_embeddings=text_embedding)
+        if args.cfg is not None:
+            latent_blank = g_ema.get_latent(sample_z, blank_embedding)
+            latent_text = g_ema.get_latent(sample_z, text_embedding)
+            latent_lerp = torch.lerp(latent_blank, latent_text, args.cfg)
+            motion, W, _ = g_ema(
+                [latent_lerp], truncation=args.truncation, truncation_latent=mean_latent,
+                return_sub_motions=args.return_sub_motions, return_latents=True, input_is_latent=True)
+        else:
+            motion, W, _ = g_ema(
+                [sample_z], truncation=args.truncation, truncation_latent=mean_latent,
+                return_sub_motions=args.return_sub_motions, return_latents=True, text_embeddings=text_embedding)
         if args.no_idle:
             stds[i] = get_motion_std(args, motion)
         if (i+1) % 1000 == 0:
@@ -261,7 +268,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                 id = f'g{cluster_label:02d}_{id}'
 
                         # save as humanml
-            hml = motion2humanml(motion_np[i], '/content/drive/MyDrive/MoDi/MoDi2/examples/HumanML_raw/joints',
+            hml = motion2humanml(motion_np[i], r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\joints",
                        parents=entity.parents_list, type=args.type, entity=entity.str(),
                        edge_rot_dict_general=edge_rot_dict_general)
             np.save(osp.join(out_path, f'{prefix}{j}_{id}.npy'), hml)
