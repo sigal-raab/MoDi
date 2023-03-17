@@ -26,8 +26,11 @@ from os.path import join as pjoin
 class DummyArgs:
     # TODO: Change these
     ckpt = r"D:\Documents\University\DeepGraphicsWorkshop\outputs\train_stddev_finetune_from_30k\checkpoint\059999.pt"
-    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test\edge_rot_joints_1_frames_64.npy"
+    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test\edge_rot_joints_1_frames_64.npy"  
+    # ckpt = r"/content/drive/MyDrive/MoDi/chk/077999.pt"
+    # path = r"/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy"
     out_path = ''
+    cfg = None
 
     std_dev = 0.0510
 
@@ -86,7 +89,7 @@ mm_num_times = 10  # should be mm_num_repeats > mm_num_times
 diversity_times = 3
 replication_times = 1
 batch_size = 256
-# batch_size = 16
+# batch_size = 1
 
 gt_loader, gt_dataset = get_dataset_motion_loader(dataset_opt_path, batch_size, device)
 wrapper_opt = get_opt(dataset_opt_path, device)

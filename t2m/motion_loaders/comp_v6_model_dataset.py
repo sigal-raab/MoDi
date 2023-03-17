@@ -190,6 +190,7 @@ class ModiGeneratedDataset(Dataset):
 
         # LOAD DATASET
         dataloader = DataLoader(dataset, batch_size=args.batch_size, num_workers=1, shuffle=True)
+        # dataloader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=True)
 
         # LOAD MODEL FROM CHECKPOINT
         g_ema, discriminator, checkpoint, entity, mean_joints, std_joints = load_all_form_checkpoint(args.ckpt, args)
@@ -234,7 +235,7 @@ class ModiGeneratedDataset(Dataset):
                     #     with open(p0, 'r') as f:
                     #         lines = f.readlines()
                     #         for line in lines:
-                    #             if line.split('#')[0]==caption[0]:
+                    #             if line.split('#')[0]==captions[0]:
                     #                 n=fn[:-4]
 
                     # # load original
@@ -250,6 +251,7 @@ class ModiGeneratedDataset(Dataset):
                     
                     # pred_motions,_,_,_ = position_to_humanml(pred_motions, nm)
                     # pred_motions = [pred_motions]
+
                     for j in range(len(pred_motions)):
                         if t == 0:
                             # print(m_lens)
@@ -306,17 +308,17 @@ class ModiGeneratedDataset(Dataset):
 
         ''' humanml eval preproccess '''
         # Crop the motions in to times of 4, and introduce small variations
-        if self.opt.unit_length < 10:
-            coin2 = np.random.choice(['single', 'single', 'double'])
-        else:
-            coin2 = 'single'
+        # if self.opt.unit_length < 10:
+        #     coin2 = np.random.choice(['single', 'single', 'double'])
+        # else:
+        #     coin2 = 'single'
 
-        if coin2 == 'double':
-            m_length = (m_length // self.opt.unit_length - 1) * self.opt.unit_length
-        elif coin2 == 'single':
-            m_length = (m_length // self.opt.unit_length) * self.opt.unit_length
-        idx = random.randint(0, len(motion) - m_length)
-        motion = motion[idx:idx+m_length]
+        # if coin2 == 'double':
+        #     m_length = (m_length // self.opt.unit_length - 1) * self.opt.unit_length
+        # elif coin2 == 'single':
+        #     m_length = (m_length // self.opt.unit_length) * self.opt.unit_length
+        # idx = random.randint(0, len(motion) - m_length)
+        # motion = motion[idx:idx+m_length]
 
         "Z Normalization"
         motion = (motion - self.mean) / self.std
