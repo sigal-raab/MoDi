@@ -25,8 +25,8 @@ from os.path import join as pjoin
 @dataclass
 class DummyArgs:
     # TODO: Change these
-    ckpt = r"D:\Documents\University\DeepGraphicsWorkshop\outputs\train_stddev_finetune_from_30k\checkpoint\059999.pt"
-    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test\edge_rot_joints_1_frames_64.npy"  
+    ckpt = r"D:\Documents\University\DeepGraphicsWorkshop\outputs\train_stddev_finetune_from_30k\checkpoint\091999.pt"
+    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_eval\edge_rot_joints_1_frames_64.npy"
     # ckpt = r"/content/drive/MyDrive/MoDi/chk/077999.pt"
     # path = r"/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy"
     out_path = ''
@@ -49,7 +49,6 @@ class DummyArgs:
     dataset = 'humanml'
     batch_size = 256
 
-
 args = DummyArgs()
 
 # dataset_opt_path = './t2m/checkpoints/kit/Comp_v6_KLD005/opt.txt'
@@ -68,7 +67,7 @@ eval_motion_loaders = {
     'MoDi': lambda: get_modi_loader(
         './t2m/checkpoints/t2m/Comp_v6_KLD01/opt.txt', # keep this for other options
         batch_size, gt_dataset, mm_num_samples, mm_num_repeats, device,
-        args=args  # add dummy args here
+        args=DummyArgs()  # add dummy args here
     )
     ################
     ## KIT Dataset##
@@ -378,7 +377,7 @@ if __name__ == '__main__':
     args = DummyArgs()
 
     # dataset_opt_path = './checkpoints/kit/Comp_v6_KLD005/opt.txt'
-    dataset_opt_path = './checkpoints/t2m/Comp_v6_KLD01/opt.txt'
+    dataset_opt_path = './t2m/checkpoints/t2m/Comp_v6_KLD01/opt.txt'
     eval_motion_loaders = {
         ################
         ## HumanML3D Dataset##
@@ -392,9 +391,9 @@ if __name__ == '__main__':
         ## MoDi Dataset##
         ################
         'MoDi': lambda: get_modi_loader(
-            './checkpoints/t2m/Comp_v6_KLD01/opt.txt', # keep this for other options
+            './t2m/checkpoints/t2m/Comp_v6_KLD01/opt.txt', # keep this for other options
             batch_size, gt_dataset, mm_num_samples, mm_num_repeats, device,
-            args=args # add dummyy args here
+            args=DummyArgs() # add dummyy args here
         )
 
         ################

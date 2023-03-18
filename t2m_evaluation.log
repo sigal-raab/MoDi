@@ -1,29 +1,43 @@
 ==================== Replication 0 ====================
-Time: 2023-03-14 00:48:32.122825
----> [ground truth] Matching Score: 2.9746
----> [ground truth] R_precision: (top 1): 0.1691 (top 2): 0.2893 (top 3): 0.3715 
----> [MoDi] Matching Score: 10.4882
----> [MoDi] R_precision: (top 1): 0.0043 (top 2): 0.0087 (top 3): 0.0143 
-Time: 2023-03-14 00:55:06.036365
----> [ground truth] FID: 0.0018
----> [MoDi] FID: 116.3841
-Time: 2023-03-14 00:58:18.827649
----> [ground truth] Diversity: 12.2047
----> [MoDi] Diversity: 1.4250
-Time: 2023-03-14 00:58:18.828647
+Time: 2023-03-18 03:29:38.104455
+---> [ground truth] Matching Score: 2.9365
+---> [ground truth] R_precision: (top 1): 0.5228 (top 2): 0.7153 (top 3): 0.8063 
+---> [MoDi] Matching Score: 5.8573
+---> [MoDi] R_precision: (top 1): 0.1489 (top 2): 0.2709 (top 3): 0.3694 
+Time: 2023-03-18 03:36:38.309037
+---> [ground truth] FID: 0.0016
+---> [MoDi] FID: 1.6166
+Time: 2023-03-18 03:40:03.110456
+---> [ground truth] Diversity: 9.5516
+---> [MoDi] Diversity: 8.4936
+Time: 2023-03-18 03:40:03.112451
 ---> [MoDi] Multimodality: 0.0000
 !!! DONE !!!
-========== Matching Score Summary ==========
----> [ground truth] Mean: 2.9746 CInterval: 0.0000
----> [MoDi] Mean: 10.4882 CInterval: 0.0000
-========== R_precision Summary ==========
----> [ground truth](top 1) Mean: 0.1691 CInt: 0.0000;(top 2) Mean: 0.2893 CInt: 0.0000;(top 3) Mean: 0.3715 CInt: 0.0000;
----> [MoDi](top 1) Mean: 0.0043 CInt: 0.0000;(top 2) Mean: 0.0087 CInt: 0.0000;(top 3) Mean: 0.0143 CInt: 0.0000;
-========== FID Summary ==========
----> [ground truth] Mean: 0.0018 CInterval: 0.0000
----> [MoDi] Mean: 116.3841 CInterval: 0.0000
-========== Diversity Summary ==========
----> [ground truth] Mean: 12.2047 CInterval: 0.0000
----> [MoDi] Mean: 1.4250 CInterval: 0.0000
-========== MultiModality Summary ==========
----> [MoDi] Mean: 0.0000 CInterval: 0.0000
+==================== Replication 1 ====================
+Time: 2023-03-18 03:49:48.489552
+---> [ground truth] Matching Score: 2.9671
+---> [ground truth] R_precision: (top 1): 0.5164 (top 2): 0.7140 (top 3): 0.8011 
+---> [MoDi] Matching Score: 5.8903
+---> [MoDi] R_precision: (top 1): 0.1593 (top 2): 0.2744 (top 3): 0.3696 
+Time: 2023-03-18 03:56:05.383568
+---> [ground truth] FID: 0.0016
+---> [MoDi] FID: 1.5660
+Time: 2023-03-18 03:59:20.932224
+---> [ground truth] Diversity: 9.2922
+---> [MoDi] Diversity: 8.6350
+Time: 2023-03-18 03:59:20.934219
+---> [MoDi] Multimodality: 0.0000
+!!! DONE !!!
+==================== Replication 2 ====================
+Time: 2023-03-18 04:09:03.537702
+---> [ground truth] Matching Score: 2.9807
+---> [ground truth] R_precision: (top 1): 0.5121 (top 2): 0.6974 (top 3): 0.7955 
+---> [MoDi] Matching Score: 5.9069
+---> [MoDi] R_precision: (top 1): 0.1625 (top 2): 0.2789 (top 3): 0.3672 
+Time: 2023-03-18 04:15:12.584636
+---> [ground truth] FID: 0.0015
+---> [MoDi] FID: 1.7346
+Time: 2023-03-18 04:18:18.049306
+---> [ground truth] Diversity: 9.4750
+---> [MoDi] Diversity: 8.7179
+Time: 2023-03-18 04:18:18.051301
