@@ -220,7 +220,7 @@ class ModiGeneratedDataset(Dataset):
                 # if is_mm:
                 #     print(mm_num_now, i, mm_idxs[mm_num_now])
                 repeat_times = mm_num_repeats if is_mm else 1
-                mm_motions = []
+                mm_motions = [[]] * len(captions)
                 # print(m_lens[0].item(), cap_lens[0].item())
                 for t in range(repeat_times):
                     # should be (1 X mov_length X movment)
@@ -264,7 +264,7 @@ class ModiGeneratedDataset(Dataset):
                             generated_motion.append(sub_dict)
 
                         if is_mm:
-                            mm_motions.append({
+                            mm_motions[j].append({
                                 'motion': pred_motions[j],
                                 'length': pred_motions[j].shape[0]
                             })
