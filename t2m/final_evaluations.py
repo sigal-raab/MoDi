@@ -1,7 +1,7 @@
 from datetime import datetime
 import numpy as np
 import torch
-from t2m.motion_loaders.dataset_motion_loader import get_dataset_modi_motion_loader
+from t2m.motion_loaders.dataset_motion_loader import get_dataset_modi_motion_loader, get_dataset_motion_loader
 from t2m.motion_loaders.model_motion_loaders import get_modi_loader
 # from t2m.motion_loaders.model_motion_loaders import get_motion_loader, get_modi_loader
 from t2m.t2m_utils.get_opt import get_opt
@@ -37,7 +37,6 @@ class DummyArgs:
     device = torch.device('cuda:%d' %
                           device_id if torch.cuda.is_available() else 'cpu')
 
-    motions = 1  # for 1 motion for each sentence
     criteria = 'torch.nn.MSELoss()'
     truncation = 1
     truncation_mean = 4096
@@ -48,9 +47,9 @@ class DummyArgs:
     type = 'Edge'
     dataset = 'humanml'
     batch_size = 256
+    # batch_size = 32
+    motions = batch_size
 
-
-args = DummyArgs()
 
 # dataset_opt_path = './t2m/checkpoints/kit/Comp_v6_KLD005/opt.txt'
 dataset_opt_path = './t2m/checkpoints/t2m/Comp_v6_KLD01/opt.txt'
@@ -69,6 +68,14 @@ eval_motion_loaders = {
         './t2m/checkpoints/t2m/Comp_v6_KLD01/opt.txt',  # keep this for other options
         batch_size, gt_dataset, mm_num_samples, mm_num_repeats, device,
         args=DummyArgs()  # add dummy args here
+    ),
+    ################
+    ## MoDi Dataset##
+    ################
+    'og gt': lambda: get_dataset_motion_loader(
+        dataset_opt_path,
+        batch_size,
+        device,
     )
     ################
     ## KIT Dataset##
@@ -82,31 +89,29 @@ device_id = 0
 device = torch.device('cuda:%d' %
                       device_id if torch.cuda.is_available() else 'cpu')
 # torch.cuda.set_device(device_id)
-mm_num_samples = 4
+mm_num_samples = 100
 # mm_num_samples = 0
-mm_num_repeats = 3  # should be mm_num_repeats > mm_num_times
-mm_num_times = 2  # should be mm_num_repeats > mm_num_times
-# diversity_times = 300
-diversity_times = 3
+mm_num_repeats = 30  # should be mm_num_repeats > mm_num_times
+mm_num_times = 10  # should be mm_num_repeats > mm_num_times
+diversity_times = 300
+# diversity_times = 3
 replication_times = 1
 batch_size = 256
-# batch_size = 1
-
+# batch_size = 32
 
 
 # TODO": replace path here with path to preprocessed bvh files
-# remember to make new std and mean and place them correctly before hand
 gt_loader, gt_dataset = get_dataset_modi_motion_loader(
     dataset_opt_path,
     batch_size,
     device,
-    '/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/'
+    '/content/drive/MyDrive/MoDi/MoDi/examples/val/motions_joints_1_frames_64'
 )
 
 
 wrapper_opt = get_opt(dataset_opt_path, device)
 eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
-log_file = args.out_path if args.out_path != '' else './t2m_evaluation.log'
+log_file = DummyArgs.out_path if DummyArgs.out_path != '' else './t2m_evaluation.log'
 
 ########
 
@@ -455,8 +460,8 @@ if __name__ == '__main__':
 
     # batch_size = 1
 
-    gt_loader, gt_dataset = get_dataset_motion_loader(
-        dataset_opt_path, batch_size, device)
+    gt_loader, gt_dataset = get_dataset_modi_motion_loader(
+        dataset_opt_path, batch_size, device, '')
     wrapper_opt = get_opt(dataset_opt_path, device)
     eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 

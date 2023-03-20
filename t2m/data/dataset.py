@@ -11,6 +11,7 @@ import spacy
 from Motion.BVH import load as bvh_load
 from Motion.Animation import positions_global
 from utils.humanml_utils import position_to_humanml
+from utils.data import anim_from_edge_rot_dict
 from glob import glob
 
 from torch.utils.data._utils.collate import default_collate
@@ -368,9 +369,12 @@ class MoDiDataset(data.Dataset):
         length_list = []
         for name in tqdm(id_list):
             try:
-                anim_parts = glob(pjoin(modi_folder_path,name+'*.bvh'))
+                anim_parts = glob(pjoin(modi_folder_path,name+'*.npy'))
+                # anim_parts = glob(pjoin(modi_folder_path,name+'*.bvh'))
                 for part_path in anim_parts:
-                    a, nm,_ = bvh_load(part_path)
+                    # a, nm,_ = bvh_load(part_path)
+                    # motion,_,_,_ = position_to_humanml(positions_global(a), nm)
+                    a, nm = anim_from_edge_rot_dict(np.load(part_path).item())
                     motion,_,_,_ = position_to_humanml(positions_global(a), nm)
 
                     if (len(motion)) < min_motion_len or (len(motion) >= 200):
@@ -412,12 +416,12 @@ class MoDiDataset(data.Dataset):
                                     # break
 
                     if flag:
-                        data_dict[name] = {'motion': motion,
+                        data_dict[part_path[:-4]] = {'motion': motion,
                                            'length': len(motion),
                                            'text': text_data}
-                        new_name_list.append(name)
+                        new_name_list.append(part_path[:-4])
                         length_list.append(len(motion))
-            except:
+            except
                 pass
         
 
