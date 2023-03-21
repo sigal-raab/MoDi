@@ -1,11 +1,13 @@
 Test_data
 results
-data
+
 preprocessed_data
 train_output
 *__pycache__/
 t2m/checkpoints/*
 t2m/dataset/*
 t2m/*.pyc
+data/*
 examples/HumanML_raw/processed/*
+examples/val/*
 tester (1).py
