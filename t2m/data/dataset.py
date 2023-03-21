@@ -374,7 +374,7 @@ class MoDiDataset(data.Dataset):
                 for part_path in anim_parts:
                     # a, nm,_ = bvh_load(part_path)
                     # motion,_,_,_ = position_to_humanml(positions_global(a), nm)
-                    a, nm = anim_from_edge_rot_dict(np.load(part_path).item())
+                    a, nm = anim_from_edge_rot_dict(np.load(part_path, allow_pickle=True).item())
                     motion,_,_,_ = position_to_humanml(positions_global(a), nm)
 
                     if (len(motion)) < min_motion_len or (len(motion) >= 200):
@@ -421,7 +421,7 @@ class MoDiDataset(data.Dataset):
                                            'text': text_data}
                         new_name_list.append(part_path[:-4])
                         length_list.append(len(motion))
-            except
+            except:
                 pass
         
 
