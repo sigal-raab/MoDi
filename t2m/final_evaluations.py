@@ -25,7 +25,7 @@ from os.path import join as pjoin
 class DummyArgs:
     # TODO: Change these
     ckpt = r"D:\Documents\University\DeepGraphicsWorkshop\outputs\train_stddev_finetune_from_30k\checkpoint\091999.pt"
-    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_eval\edge_rot_joints_1_frames_64.npy"
+    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test\edge_rot_joints_1_frames_64.npy"
     # ckpt = r"/content/drive/MyDrive/MoDi/chk/077999.pt"
     # path = r"/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy"
     out_path = ''
@@ -100,7 +100,7 @@ gt_loader, gt_dataset = get_dataset_modi_motion_loader(
     dataset_opt_path,
     batch_size,
     device,
-    '/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/'
+    r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test"
 )
 
 
@@ -455,8 +455,9 @@ if __name__ == '__main__':
 
     # batch_size = 1
 
-    gt_loader, gt_dataset = get_dataset_motion_loader(
-        dataset_opt_path, batch_size, device)
+    gt_loader, gt_dataset = get_dataset_modi_motion_loader(
+        dataset_opt_path, batch_size, device,
+        r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test")
     wrapper_opt = get_opt(dataset_opt_path, device)
     eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 

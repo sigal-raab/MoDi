@@ -155,6 +155,7 @@ class GenerateOptions(TestBaseOptions):
         parser.add_argument('--std_dev', default=1.0, type=float,
                             help='The std_dev to use for the noise (should be the same as the text embeddings)')
         parser.add_argument('--cfg', default=None, type=float, help="cfg in latent space")
+        parser.add_argument('--seeds_num', default=1, type=int, help="number of seeds per text")
 class EvaluateOptions(TestBaseOptions):
     def __init__(self):
         super().__init__()

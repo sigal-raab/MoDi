@@ -367,58 +367,58 @@ class MoDiDataset(data.Dataset):
         new_name_list = []
         length_list = []
         for name in tqdm(id_list):
-            try:
-                anim_parts = glob(pjoin(modi_folder_path,name+'*.bvh'))
-                for part_path in anim_parts:
-                    a, nm,_ = bvh_load(part_path)
-                    motion,_,_,_ = position_to_humanml(positions_global(a), nm)
+            # try:
+            anim_parts = glob(pjoin(modi_folder_path,name+'*.bvh'))
+            for part_path in anim_parts:
+                a, nm,_ = bvh_load(part_path)
+                motion,_,_,_ = position_to_humanml(positions_global(a), nm)
 
-                    if (len(motion)) < min_motion_len or (len(motion) >= 200):
-                        continue
-                    text_data = []
-                    flag = False
-                    with cs.open(pjoin(opt.text_dir, name + '.txt')) as f:
-                        for line in f.readlines():
-                            text_dict = {}
-                            line_split = line.strip().split('#')
-                            caption = line_split[0]
-                            tokens = line_split[1].split(' ')
-                            f_tag = float(line_split[2])
-                            to_tag = float(line_split[3])
-                            f_tag = 0.0 if np.isnan(f_tag) else f_tag
-                            to_tag = 0.0 if np.isnan(to_tag) else to_tag
+                if (len(motion)) < min_motion_len or (len(motion) >= 200):
+                    continue
+                text_data = []
+                flag = False
+                with cs.open(pjoin(opt.text_dir, name + '.txt')) as f:
+                    for line in f.readlines():
+                        text_dict = {}
+                        line_split = line.strip().split('#')
+                        caption = line_split[0]
+                        tokens = line_split[1].split(' ')
+                        f_tag = float(line_split[2])
+                        to_tag = float(line_split[3])
+                        f_tag = 0.0 if np.isnan(f_tag) else f_tag
+                        to_tag = 0.0 if np.isnan(to_tag) else to_tag
 
-                            text_dict['caption'] = caption
-                            text_dict['tokens'] = tokens
-                            if f_tag == 0.0 and to_tag == 0.0:
-                                flag = True
-                                text_data.append(text_dict)
-                            else:
-                                try:
-                                    n_motion = motion[int(f_tag*20) : int(to_tag*20)]
-                                    if (len(n_motion)) < min_motion_len or (len(n_motion) >= 200):
-                                        continue
+                        text_dict['caption'] = caption
+                        text_dict['tokens'] = tokens
+                        if f_tag == 0.0 and to_tag == 0.0:
+                            flag = True
+                            text_data.append(text_dict)
+                        else:
+                            try:
+                                n_motion = motion[int(f_tag*20) : int(to_tag*20)]
+                                if (len(n_motion)) < min_motion_len or (len(n_motion) >= 200):
+                                    continue
+                                new_name = random.choice('ABCDEFGHIJKLMNOPQRSTUVW') + '_' + name
+                                while new_name in data_dict:
                                     new_name = random.choice('ABCDEFGHIJKLMNOPQRSTUVW') + '_' + name
-                                    while new_name in data_dict:
-                                        new_name = random.choice('ABCDEFGHIJKLMNOPQRSTUVW') + '_' + name
-                                    data_dict[new_name] = {'motion': n_motion,
-                                                           'length': len(n_motion),
-                                                           'text':[text_dict]}
-                                    new_name_list.append(new_name)
-                                    length_list.append(len(n_motion))
-                                except:
-                                    print(line_split)
-                                    print(line_split[2], line_split[3], f_tag, to_tag, name)
-                                    # break
+                                data_dict[new_name] = {'motion': n_motion,
+                                                       'length': len(n_motion),
+                                                       'text':[text_dict]}
+                                new_name_list.append(new_name)
+                                length_list.append(len(n_motion))
+                            except:
+                                print(line_split)
+                                print(line_split[2], line_split[3], f_tag, to_tag, name)
+                                # break
 
-                    if flag:
-                        data_dict[name] = {'motion': motion,
-                                           'length': len(motion),
-                                           'text': text_data}
-                        new_name_list.append(name)
-                        length_list.append(len(motion))
-            except:
-                pass
+                if flag:
+                    data_dict[name] = {'motion': motion,
+                                       'length': len(motion),
+                                       'text': text_data}
+                    new_name_list.append(name)
+                    length_list.append(len(motion))
+            # except:
+            #     pass
         
 
         name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))

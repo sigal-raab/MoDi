@@ -38,4 +38,5 @@ if __name__ == '__main__':
 
     # # use this to generate mean and std for processed data
     # # place the files in the checkpoints/t2m/Comp_v6_KLD01/meta
-    # create_test_std_mean('/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small','/content/drive/MyDrive/MoDi/MoDi/examples/test')
+    # create_test_std_mean(r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test",
+    #                      r"D:\Documents\University\DeepGraphicsWorkshop\data\eval_std_mean")

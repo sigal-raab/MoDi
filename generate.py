@@ -73,6 +73,8 @@ def sample(args, g_ema, device, mean_latent, texts=None, verbose=False):
             motions_num = len(texts)
     else:
         motions_num = len(texts)
+    if args.seeds_num is not None:
+        motions_num *= args.seeds_num
 
     seed2text = {}
     text_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -91,14 +93,13 @@ def sample(args, g_ema, device, mean_latent, texts=None, verbose=False):
             seeds = (np.random.random(n_motions)*seed_rnd_mult).astype(int)
     else:
         seeds = np.array(args.sample_seeds)
-    if len(seeds) != len(texts):
-        texts *= int(math.ceil(len(seeds) / len(texts)))
     generated_motion = pd.DataFrame(index=seeds, columns=['motion', 'W'], dtype=object)
     for i, seed in enumerate(seeds):
-        seed2text[seed] = texts[i]
+        text = texts[i % len(texts)]
+        seed2text[seed] = text
         rnd_generator = torch.Generator(device=device).manual_seed(int(seed))
 
-        text_embedding = torch.tensor(text_model.encode(texts[i]))[None, :].to(device)
+        text_embedding = torch.tensor(text_model.encode(text))[None, :].to(device)
         sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator) * args.std_dev
         if args.cfg is not None:
             latent_blank = g_ema.get_latent(sample_z, blank_embedding)
@@ -236,10 +237,7 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
             generated_motion = pd.DataFrame(columns=['motion'], data=generated_motion)
 
         # save W if exists
-        if 'W' in generated_motion.columns:
-            for j, seed in enumerate(generated_motion.index):
-                assert generated_motion.W[seed].ndim == 3 and generated_motion.W[seed].shape[0] == 1
-                np.save(osp.join(out_path, f'Wplus_{j}_{seed}.npy'), generated_motion.W[seed][0].cpu().numpy())
+
 
         # save motions
         motion_np, _ = get_gen_mot_np(args, generated_motion['motion'], mean_joints, std_joints)
@@ -258,25 +256,37 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
         plt.close()
 
         texts_reordered = []
-        for j, idx in enumerate(generated_motion.index):
-            id = idx if idx is not None else j
+        txt_to_idx = {}
+        for j, seed in enumerate(generated_motion.index):
+            id = seed if seed is not None else j
             if args.simple_idx:
                 id = '{:03d}'.format(j)
             if 'cluster_label' in generated_motion.columns:
-                cluster_label = generated_motion.cluster_label[idx]
+                cluster_label = generated_motion.cluster_label[seed]
                 cluster_label = torch.argmax(cluster_label).item()
                 id = f'g{cluster_label:02d}_{id}'
 
+            if seed is not None:
+                text = seed2text[seed]
+                if text not in txt_to_idx:
+                    texts_reordered.append(f'{j:03d}. {text}')
+                    txt_to_idx[text] = j
+                idx = txt_to_idx[text]
+            else:
+                idx = j
                         # save as humanml
-            hml = motion2humanml(motion_np[i], r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\joints",
+            hml = motion2humanml(motion_np[j], r"D:\Documents\University\DeepGraphicsWorkshop\git\HumanML3D\joints",
                        parents=entity.parents_list, type=args.type, entity=entity.str(),
                        edge_rot_dict_general=edge_rot_dict_general)
-            np.save(osp.join(out_path, f'{prefix}{j}_{id}.npy'), hml)
+            np.save(osp.join(out_path, f'{prefix}{idx}_{id}.npy'), hml)
             
-            motion2bvh(motion_np[j], osp.join(out_path, f'{prefix}{j}_{id}.bvh'),
+            motion2bvh(motion_np[j], osp.join(out_path, f'{prefix}{idx}_{id}.bvh'),
                        parents=entity.parents_list, type=args.type, entity=entity.str(),
                        edge_rot_dict_general=edge_rot_dict_general)
-            texts_reordered.append(seed2text[idx])
+
+            if 'W' in generated_motion.columns:
+                assert generated_motion.W[seed].ndim == 3 and generated_motion.W[seed].shape[0] == 1
+                np.save(osp.join(out_path, f'Wplus_{idx}_{id}.npy'), generated_motion.W[seed][0].cpu().numpy())
 
         with open(osp.join(out_path, 'generated_texts.txt'), 'w') as generated_texts_file:
             generated_texts_file.write('\n'.join(texts_reordered))
