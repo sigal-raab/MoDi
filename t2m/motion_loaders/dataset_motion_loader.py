@@ -16,7 +16,7 @@ def get_dataset_motion_loader(opt_path, batch_size, device):
         std = np.load(pjoin(opt.meta_dir, 'std.npy'))
 
         w_vectorizer = WordVectorizer('./t2m/glove', 'our_vab')
-        split_file = pjoin(opt.data_root, 'val.txt')
+        split_file = pjoin(opt.data_root, 'test.txt')
         dataset = Text2MotionDatasetV2(opt, mean, std, split_file, w_vectorizer)
         dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4, drop_last=True,
                                 collate_fn=collate_fn, shuffle=True)
@@ -43,7 +43,7 @@ def get_dataset_modi_motion_loader(opt_path, batch_size, device, modi_folder_pat
         std = np.load(pjoin(opt.meta_dir, 'std.npy'))
 
         w_vectorizer = WordVectorizer('./t2m/glove', 'our_vab')
-        split_file = pjoin(opt.data_root, 'val.txt')
+        split_file = pjoin(opt.data_root, 'test.txt')
         dataset = MoDiDataset(opt, mean, std, split_file, w_vectorizer, modi_folder_path)
         dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4, drop_last=True,
                                 collate_fn=collate_fn, shuffle=True)
