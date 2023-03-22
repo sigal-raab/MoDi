@@ -24,13 +24,15 @@ from os.path import join as pjoin
 @dataclass
 class DummyArgs:
     # TODO: Change these
-    ckpt = r"D:\Documents\University\DeepGraphicsWorkshop\outputs\train_stddev_finetune_from_30k\checkpoint\091999.pt"
-    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_eval\edge_rot_joints_1_frames_64.npy"
+    ckpt_file = r"train_stddev_finetune_from_30k\checkpoint\099999.pt"
+    ckpt_base = r"D:\Documents\University\DeepGraphicsWorkshop\outputs"
+    ckpt = os.path.join(ckpt_base, ckpt_file)
+    path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_train\edge_rot_joints_1_frames_64.npy"
     # ckpt = r"/content/drive/MyDrive/MoDi/chk/077999.pt"
     # path = r"/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy"
-    out_path = ''
+    out_path = r"D:\Documents\University\DeepGraphicsWorkshop\results\evaluation_val_" + ckpt_file.replace("\\", '-') + '.log'
     cfg = None
-
+    seeds_num = None
     std_dev = 0.0510
 
     device_id = 0
@@ -46,8 +48,8 @@ class DummyArgs:
     return_sub_motions = False
     type = 'Edge'
     dataset = 'humanml'
-    batch_size = 256
-    # batch_size = 32
+    # batch_size = 256
+    batch_size = 32
     motions = batch_size
 
 
@@ -89,15 +91,15 @@ device_id = 0
 device = torch.device('cuda:%d' %
                       device_id if torch.cuda.is_available() else 'cpu')
 # torch.cuda.set_device(device_id)
-mm_num_samples = 100
-# mm_num_samples = 0
-mm_num_repeats = 30  # should be mm_num_repeats > mm_num_times
-mm_num_times = 10  # should be mm_num_repeats > mm_num_times
+# mm_num_samples = 100
+mm_num_samples = 0
+mm_num_repeats = 3  # should be mm_num_repeats > mm_num_times
+mm_num_times = 1  # should be mm_num_repeats > mm_num_times
 diversity_times = 300
 # diversity_times = 3
 replication_times = 1
-batch_size = 256
-# batch_size = 32
+# batch_size = 256
+batch_size = 32
 
 
 # TODO": replace path here with path to preprocessed bvh files
@@ -105,7 +107,7 @@ gt_loader, gt_dataset = get_dataset_modi_motion_loader(
     dataset_opt_path,
     batch_size,
     device,
-    '/content/drive/MyDrive/MoDi/MoDi/examples/val/motions_joints_1_frames_64'
+    r'D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_val_uncut'
 )
 
 

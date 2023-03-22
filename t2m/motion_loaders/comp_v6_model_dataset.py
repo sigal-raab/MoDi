@@ -11,7 +11,7 @@ from utils.pre_run import load_all_form_checkpoint
 import random
 
 # from utils.visualization import motion2humanml
-# from utils.data import motion_from_raw
+from utils.data import motion_from_raw
 # from generate import get_gen_mot_np
 from evaluate import generate
 from utils.humanml_utils import position_to_humanml
@@ -207,6 +207,8 @@ class ModiGeneratedDataset(Dataset):
         min_mov_length = 10 if opt.dataset_name == 't2m' else 6
         # print(mm_idxs)
 
+        _, _, _, edge_rot_dict_general = motion_from_raw(args, np.load(args.path, allow_pickle=True))
+
         with torch.no_grad():
             for i, data in tqdm(enumerate(dataloader)):
                 word_emb, pos_ohot, captions, cap_lens, motions, m_lens, tokens = data
@@ -224,7 +226,8 @@ class ModiGeneratedDataset(Dataset):
                 # print(m_lens[0].item(), cap_lens[0].item())
                 for t in range(repeat_times):
                     # should be (1 X mov_length X movment)
-                    pred_motions, _ = generate(args, g_ema, args.device, mean_joints, std_joints, entity, captions)
+                    pred_motions, _ = generate(args, g_ema, args.device, mean_joints, std_joints, entity,
+                                               texts=captions, edge_rot_dict_general=edge_rot_dict_general)
 
                     # # find file
                     # p = '/content/drive/MyDrive/MoDi/MoDi/examples/HumanML_raw'

@@ -370,6 +370,7 @@ class MoDiDataset(data.Dataset):
         for name in tqdm(id_list):
             try:
                 anim_parts = glob(pjoin(modi_folder_path,name+'*.npy'))
+                # anim_parts = [pjoin(modi_folder_path,name+'_joints_1_frames_64_rot.npy')]
                 # anim_parts = glob(pjoin(modi_folder_path,name+'*.bvh'))
                 for part_path in anim_parts:
                     # a, nm,_ = bvh_load(part_path)
