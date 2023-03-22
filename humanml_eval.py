@@ -1,4 +1,4 @@
-from t2m.final_evaluations import *
+from t2m.final_evaluations import FinalEval, DummyArgs
 from dataclasses import dataclass
 
 from Motion.BVH import load as bvh_load
@@ -34,7 +34,9 @@ def create_test_std_mean(modi_folder_path, out_path):
 
 if __name__ == '__main__':
     # run the evaluation
-    evaluation(log_file)
+
+    log_file = DummyArgs.out_path if DummyArgs.out_path != '' else './t2m_evaluation.log'
+    FinalEval().evaluation(log_file)
 
     # # use this to generate mean and std for processed data
     # # place the files in the checkpoints/t2m/Comp_v6_KLD01/meta
