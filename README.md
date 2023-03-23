@@ -70,18 +70,24 @@ You may also download the corresponding naming data from
 
 ## Novel motion synthesis
 
-Here is an example for the creation of 18 random samples, to be placed in `<result path>`.
+Here is an example for the creation of a random sample for each line in <texts file>, to be placed in `<result path>`.
 
 ~~~bash
-python generate.py --type sample --motions 18 --ckpt ./data/ckpt.pt --out_path <results path> --path ./data/edge_rot_data.npy
+python generate.py --type sample --ckpt ./data/ckpt.pt --out_path <results path> --path ./data/edge_rot_data.npy --text_path <texts file> --std_dev 0.0510
 ~~~
 
 ## Train from scratch
 
-Following is a training example with the command line arguments that were used for training our best performing model. 
+Following is a training example with the command line arguments that were used for training our best performing model. first pretrain without text:
 
 ~~~bash
-python train.py --path ./data/edge_rot_data.npy --skeleton --conv3 --glob_pos --v2_contact_loss --normalize --use_velocity --foot --name <experiment name>
+python train.py --path ./data/edge_rot_data.npy --skeleton --conv3 --glob_pos --v2_contact_loss --normalize --use_velocity --foot --name <experiment name> --iter 30000
+~~~
+
+Then fine-tune with text
+
+~~~bash
+python train.py --path ./data/edge_rot_data.npy --skeleton --conv3 --glob_pos --v2_contact_loss --normalize --use_velocity --foot --name <experiment name> --dataset_texts_path <path to sample list> --dataset_texts_root <path to text files> --iter 90000 --mask_rate 0 --ckpt <path to pretrained ckpt>
 ~~~
 
 ## Interpolation in Latent Space 

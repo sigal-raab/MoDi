@@ -29,7 +29,7 @@ class DummyArgs:
     path = r"D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_train\edge_rot_joints_1_frames_64.npy"
     # ckpt = r"/content/drive/MyDrive/MoDi/chk/077999.pt"
     # path = r"/content/drive/MyDrive/MoDi/MoDi/examples/preprocessed_data_small/edge_rot_joints_1_frames_64.npy"
-    out_path = r"D:\Documents\University\DeepGraphicsWorkshop\results\evaluation_test_" + ckpt_file.replace("\\",
+    out_path = r"D:\Documents\University\DeepGraphicsWorkshop\results\evaluation_test_cut_mm2_" + ckpt_file.replace("\\",
                                                                                                            '-') + '.log'
     cfg = None
     seeds_num = None
@@ -63,15 +63,15 @@ class FinalEval:
         self.device = torch.device('cuda:%d' %
                                    self.device_id if torch.cuda.is_available() else 'cpu')
         # torch.cuda.set_device(device_id)
-        # self.mm_num_samples = 100
-        self.mm_num_samples = 0
-        # self.mm_num_repeats = 30  # should be mm_num_repeats > mm_num_times
-        self.mm_num_repeats = 3  # should be mm_num_repeats > mm_num_times
-        # self.mm_num_times = 10  # should be mm_num_repeats > mm_num_times
-        self.mm_num_times = 1  # should be mm_num_repeats > mm_num_times
+        self.mm_num_samples = 100
+        # self.mm_num_samples = 0
+        self.mm_num_repeats = 30  # should be mm_num_repeats > mm_num_times
+        # self.mm_num_repeats = 3  # should be mm_num_repeats > mm_num_times
+        self.mm_num_times = 10  # should be mm_num_repeats > mm_num_times
+        # self.mm_num_times = 1  # should be mm_num_repeats > mm_num_times
         self.diversity_times = 300
         # self.diversity_times = 3
-        self.replication_times = 5
+        self.replication_times = 4
         # self.batch_size = 256
         self.batch_size = 32
 
@@ -80,8 +80,8 @@ class FinalEval:
             self.dataset_opt_path,
             self.batch_size,
             self.device,
-            # r'D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_val\motions_joints_1_frames_64'
-            r'D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test_uncut'
+            r'D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test\motions_joints_1_frames_64'
+            # r'D:\Documents\University\DeepGraphicsWorkshop\data\preprocessed_data_test_uncut'
         )
         self.eval_motion_loaders = {
             ################
