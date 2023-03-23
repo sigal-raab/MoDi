@@ -1,4 +1,4 @@
-# MoDi: Unconditional Motion Synthesis from Diverse Data
+# CMoDi: Conditional Motion Synthesis from Diverse Data
 
 <!-- ![alt text](coming_soon.png) -->
 
