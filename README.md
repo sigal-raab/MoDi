@@ -36,6 +36,7 @@ conda install -y -c conda-forge matplotlib
 conda install -y -c anaconda pandas
 conda install -y -c conda-forge scipy
 conda install -y -c anaconda scikit-learn
+conda install -c conda-forge sentence-transformers
 pip install clearml
 ~~~
 
