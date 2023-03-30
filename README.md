@@ -106,9 +106,12 @@ Note that editing takes a long time, but once it is done, the data that was alre
 which significantly shortens the running time. See inline documentation for more details.
 
 ## Inversion
+Following is and example for inversion of a motion using an optimizer: 
 ~~~bash
 python inverse_optim.py --ckpt ./data/ckpt.pt --out_path <results path> --target_idx 32 --path ./data/edge_rot_data.npy
 ~~~
+
+Use `--target_idx` to chose the index of a motion to invert from `edge_rot_data.npy` file. 
 
 ## Quntitative evaluation 
 The following metrics are computed during the evaluation: FID, KID, diversity, precision and recall.
