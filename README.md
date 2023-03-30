@@ -174,9 +174,10 @@ Part of the evaluation examples are taken from [HumanAct12](https://github.com/E
 If you use this code for your research, please cite our paper:
 
 ~~~bibtex
-@article{raab2022modi,
+@inproceedings{raab2022modi,
   title={MoDi: Unconditional Motion Synthesis from Diverse Data},
   author={Raab, Sigal and Leibovitch, Inbal and Li, Peizhuo and Aberman, Kfir and Sorkine-Hornung, Olga and Cohen-Or, Daniel},
-  journal={arXiv preprint arXiv:2206.08010},
-  year={2022}
+  booktitle={Conference on Computer Vision and Pattern Recognition (CVPR) 2023},
+  year={2023},
 }
+
