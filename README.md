@@ -81,7 +81,7 @@ python generate.py --type sample --motions 18 --ckpt ./data/ckpt.pt --out_path <
 Following is a training example with the command line arguments that were used for training our best performing model. 
 
 ~~~bash
-python train.py --path ./data/edge_rot_data.npy --skeleton --conv3 --glob_pos --v2_contact_loss --normalize --use_velocity --foot --name <experiment name>
+python train.py --path ./data/edge_rot_data.npy --skeleton --conv3fast --glob_pos --v2_contact_loss --normalize --use_velocity --foot --name <experiment name>
 ~~~
 
 ## Interpolation in Latent Space 

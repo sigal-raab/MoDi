@@ -69,6 +69,7 @@ class TrainOptions(TrainBaseOptions):
         parser.add_argument("--joints_pool", action="store_true",
                             help="manipulate joints by pool/unpool rather than conv (skeleton-aware only)")
         parser.add_argument("--conv3", action="store_true", help="use 3D convolutions (skeleton-aware only)")
+        parser.add_argument("--conv3fast", action="store_true", help="use fast 2D convolutions (skeleton-aware only)")
         parser.add_argument("--entity", type=str, default='Edge', choices=['Joint', 'Edge'],
                             help="entity type: Joint for joint locations, or Edge for edge rotations")
         parser.add_argument("--glob_pos", action="store_true",
@@ -91,7 +92,7 @@ class TrainOptions(TrainBaseOptions):
         self.parser = parser
 
     def after_parse(self, args):
-        assert (not (args.skeleton | args.conv3 | args.joints_pool)) | args.skeleton & (args.conv3 ^ args.joints_pool)
+        assert (not (args.skeleton | args.conv3 | args.joints_pool | args.conv3fast)) | args.skeleton & (args.conv3 ^ args.joints_pool ^ args.conv3fast)
         return args
 
 class TestBaseOptions(BaseOptions):
@@ -124,6 +125,7 @@ class OptimOptions(TestBaseOptions):
         self.parser.add_argument("--lambda_pos", default=3e-3, type=float)
         self.parser.add_argument("--use_local_pos", default=1, type=int)
         self.parser.add_argument("--Wplus", type=int, default=1, help="Use Wplus space or not")
+
 
 class GenerateOptions(TestBaseOptions):
     def __init__(self):
@@ -162,7 +164,6 @@ class EvaluateOptions(TestBaseOptions):
 
         parser.add_argument('--act_rec_gt_path', type=str,
                             help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
-        parser.add_argument('--fast', action='store_true', help='skip metrics that require long evaluation')
         parser.add_argument('--actor_motions_path', type=str, help='path to randomly generated actor motions')
 
 
@@ -184,7 +185,7 @@ class EditOptions(TestBaseOptions):
 # endregion
 
 def get_ckpt_args(args, loaded_args):
-    network_args_unique = ['skeleton', 'entity', 'glob_pos', 'joints_pool', 'conv3', 'foot', 'normalize',
+    network_args_unique = ['skeleton', 'entity', 'glob_pos', 'joints_pool', 'conv3', 'conv3fast', 'foot', 'normalize',
                            'axis_up', 'use_velocity', 'rotation_repr', 'latent',
                            'n_frames_dataset', 'n_inplace_conv', 'n_mlp', 'channel_multiplier']
     network_args_non_unique = ['path']
@@ -242,12 +243,16 @@ def setup_env(args, get_traits=False):
         args.axis_up = 1
 
     if get_traits:
-        from utils.traits import SkeletonAwarePoolTraits, SkeletonAwareConv3DTraits, NonSkeletonAwareTraits
+        from utils.traits import SkeletonAwarePoolTraits, SkeletonAwareConv3DTraits,\
+            NonSkeletonAwareTraits, SkeletonAwareFastConvTraits
+
         if args.skeleton:
             if args.joints_pool:
                 traits_class = SkeletonAwarePoolTraits
             elif args.conv3:
                 traits_class = SkeletonAwareConv3DTraits
+            elif args.conv3fast:
+                traits_class = SkeletonAwareFastConvTraits
             else:
                 raise 'Traits cannot be selected.'
         else:
