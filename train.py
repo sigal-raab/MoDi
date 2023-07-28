@@ -12,7 +12,7 @@ from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from utils.visualization import motion2fig, motion2bvh
-from utils.data import calc_bone_lengths
+from utils.data import calc_bone_lengths, sample_data, data_sampler, requires_grad
 from utils.traits import *
 from utils.data import foot_names
 from utils.data import motion_from_raw
@@ -42,24 +42,6 @@ try:
 except ImportError:
     LossRecorder = None
 
-def data_sampler(dataset, shuffle, distributed):
-    if distributed:
-        return data.distributed.DistributedSampler(dataset, shuffle=shuffle)
-
-    if shuffle:
-        return data.RandomSampler(dataset)
-
-    else:
-        return data.SequentialSampler(dataset)
-
-
-def requires_grad(model, flag=True):
-    for name, p in model.named_parameters():
-        # refrain from computing gradients for parameters that are 'non_grad': masks, etc.
-        if flag == False or \
-                flag == True and hasattr(model, 'non_grad_params') and name not in model.non_grad_params:
-            p.requires_grad = flag
-
 
 def accumulate(model1, model2, decay=0.999):
     # model1 <-- model1*decay + model2*(1-decay)
@@ -69,11 +51,6 @@ def accumulate(model1, model2, decay=0.999):
     for k in par1.keys():
         par1[k].data.mul_(decay).add_(par2[k].data, alpha=1 - decay)
 
-
-def sample_data(loader):
-    while True:
-        for batch in loader:
-            yield batch
 
 # discriminator pushes 'real' to be positive and 'fake' to be negative
 def d_logistic_loss(real_pred, fake_pred):
@@ -233,8 +210,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True)
 
-        fake_pred = discriminator(fake_img)
-        real_pred = discriminator(real_img)
+        fake_pred, _, _ = discriminator(fake_img)
+        real_pred, _, _ = discriminator(real_img)
         d_loss = d_logistic_loss(real_pred, fake_pred)
 
         loss_dict["d"] = d_loss
@@ -249,7 +226,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
         if d_regularize:
             real_img.requires_grad = True
-            real_pred = discriminator(real_img)
+            real_pred, _, _ = discriminator(real_img)
             r1_loss = d_r1_loss(real_pred, real_img)
 
             discriminator.zero_grad()
@@ -268,7 +245,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         noise = mixing_noise(args.batch, args.latent, args.mixing, device)
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True,
                                                        return_sub_motions=args.return_sub_motions)
-        fake_pred = discriminator(fake_img)
+        fake_pred, _, _ = discriminator(fake_img)
 
         g_loss = g_nonsaturating_loss(fake_pred)
 
@@ -430,6 +407,14 @@ def calc_evaluation_metrics(args, device, g_ema, entity, std_joints, mean_joints
     # precision/recall (lower priority)
 
     return fid, kid[0], g_diversity
+
+
+def get_grad_mean_max(module):
+    grad_list = [p.grad.flatten() for p in module.parameters() if p.requires_grad]
+    grad_mean = torch.abs(torch.cat(grad_list).mean())
+    grad_max = torch.cat(grad_list).max()
+    return grad_mean, grad_max
+
 
 def main(args_not_parsed):
     parser = TrainOptions()

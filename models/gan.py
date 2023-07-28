@@ -16,6 +16,33 @@ from torch.nn import functional as F
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 
 from models.skeleton import SkeletonUnpool
+class LatentPrediction(nn.Module):
+    def __init__(self, in_channel, latent_dim, n_latent, extra_linear=1):
+        super().__init__()
+        self.latent_dim = latent_dim
+        self.n_latent = n_latent
+        out_dim = latent_dim * n_latent
+        self.linear1 = EqualLinear(in_channel, out_dim, activation='fused_lrelu')
+        if extra_linear:
+            seq = []
+            for i in range(extra_linear - 1):
+                seq.append(EqualLinear(out_dim, out_dim, activation='fused_lrelu'))
+            seq.append(EqualLinear(out_dim, out_dim))
+            if len(seq) == 1:
+                self.linear2 = seq[0]
+            else:
+                self.linear2 = nn.Sequential(*seq)
+        else:
+            self.linear2 = None
+
+    def forward(self, input):
+        input = input.reshape(input.shape[0], -1)  # flatten. input may be already flat, depending on latent_rec_idx
+        out = self.linear1(input)
+        if self.linear2 is not None:
+            out = self.linear2(out)
+        out = out.reshape(input.shape[0], self.n_latent, self.latent_dim)
+        return out
+
 
 class PixelNorm(nn.Module):
     def __init__(self):
@@ -671,7 +698,8 @@ class ResBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, blur_kernel=[1, 3, 3, 1], traits_class=None, entity=None, n_inplace_conv=1):
+    def __init__(self, blur_kernel=[1, 3, 3, 1], traits_class=None, entity=None, reconstruct_latent=False, latent_dim=None, latent_rec_idx=None, n_inplace_conv=1,
+                 n_latent_predict=0, mask_extra_channel=0):
         super().__init__()
 
         if traits_class.is_pool():
@@ -682,7 +710,7 @@ class Discriminator(nn.Module):
         self.n_levels = traits_class.n_levels(entity)
 
         skeleton_traits = traits_class(parents=entity.parents_list[-1], pooling_list=keep_skeletal_dims(n_joints[-1]))
-        convs = [ConvLayer(entity.n_channels, self.n_channels[-1], 1, skeleton_traits=skeleton_traits)] # channel-wise expansion. keep dims. kernel=1
+        convs = [ConvLayer(entity.n_channels + mask_extra_channel, self.n_channels[-1], 1, skeleton_traits=skeleton_traits)] # channel-wise expansion. keep dims. kernel=1
 
         in_channel = self.n_channels[-1]
 
@@ -707,6 +735,15 @@ class Discriminator(nn.Module):
             EqualLinear(self.n_channels[0] * n_joints[0] * self.n_frames[0], self.n_channels[0], activation='fused_lrelu'),
             EqualLinear(self.n_channels[0], 1),
         )
+        self.latent_rec_idx = latent_rec_idx
+
+        self.n_latent_predict = n_latent_predict
+        if n_latent_predict > 0:
+            i = max(0, self.n_levels - latent_rec_idx)
+            self.latent_predictor = LatentPrediction(self.n_channels[i] * n_joints[i] * self.n_frames[i], latent_dim,
+                                                     n_latent_predict)
+        else:
+            self.latent_predictor = None
 
         # keep names of parameters that should have requires_grad=False
         self.non_grad_params = []
@@ -717,8 +754,15 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         # input dims: (samples, channels, entities, frames)
-        out = self.convs(input)
+        # out = self.convs(input)
+        for i, module in enumerate(self.convs):
+            if i == self.latent_rec_idx:
+                latent_base = input
+            input = module(input)
 
+        if self.latent_rec_idx == len(self.convs):
+            latent_base = input
+        out = input
         batch, channel, height, width = out.shape
         group = min(batch, self.stddev_group)
         stddev = out.view(
@@ -732,9 +776,20 @@ class Discriminator(nn.Module):
         out = self.final_conv(out)                                  # fuse the additional stddev channel with existing ones
 
         out = out.view(batch, -1)
-        out = self.final_linear(out)
+        if self.latent_rec_idx == len(self.convs) + 1 or self.latent_rec_idx == -1:
+            latent_base = out
+        if self.latent_predictor is not None:
+            rec_latent = self.latent_predictor(latent_base)
+            inject_index = None
+        else:
+            rec_latent, inject_index = None, None
 
-        return out
+        if not self.latent_predictor:
+            out = self.final_linear(out)
+        else:
+            out = None
+
+        return out, rec_latent, inject_index
 
 def keep_skeletal_dims(n_joints):
     return {joint_idx:[joint_idx] for joint_idx in range(n_joints)}

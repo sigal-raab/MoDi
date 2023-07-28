@@ -777,5 +777,30 @@ def append_foot_contact(motion_data, glob_pos, axis_up, edge_rot_dict_general):
     return motion_data
 
 
+def sample_data(loader):
+    while True:
+        for batch in loader:
+            yield batch
+
+
+def data_sampler(dataset, shuffle, distributed):
+    if distributed:
+        return torch.utils.data.distributed.DistributedSampler(dataset, shuffle=shuffle)
+
+    if shuffle:
+        return torch.utils.data.RandomSampler(dataset)
+
+    else:
+        return torch.utils.data.SequentialSampler(dataset)
+
+
+def requires_grad(model, flag=True):
+    for name, p in model.named_parameters():
+        # refrain from computing gradients for parameters that are 'non_grad': masks, etc.
+        if flag == False or \
+                flag == True and hasattr(model, 'non_grad_params') and name not in model.non_grad_params:
+            p.requires_grad = flag
+
+
 if __name__ == "__main__":
     pass

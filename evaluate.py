@@ -119,24 +119,32 @@ def initialize_model(device, modelpath, dataset='mixamo'):
     model.eval()
     return model
 
-def compute_features(model, iterator):
+def compute_features(model, iterator, multi=False, indices=[0,1,2,3,4,5]):
     device = 'cuda'
     activations = []
     predictions = []
+    if indices is None: indices = [0,1,2,3,4,5]
     with torch.no_grad():
         for i, batch in enumerate(iterator):
         # for i, batch in tqdm(enumerate(iterator), desc="Computing batch"):
             batch_for_model = {}
             batch_for_model['x'] = batch.to(device).float()
             model(batch_for_model)
-            activations.append(batch_for_model['features'])
+            if multi:
+                multilevel_features = []
+                for idx in indices:
+                    multilevel_features.append(batch_for_model[f'features_{idx}'])
+                multilevel_features = torch.cat(multilevel_features, dim=1)
+                activations.append(multilevel_features)
+            else:
+                activations.append(batch_for_model['features'])
             predictions.append(batch_for_model['yhat'])
             # labels.append(batch_for_model['y'])
         activations = torch.cat(activations, dim=0)
         predictions = torch.cat(predictions, dim=0)
-        # labels = torch.cat(labels, dim=0)
-        # shape torch.Size([16, 15, 3, 64]) (batch, joints, xyz, frames)
-    return activations, predictions
+            # labels = torch.cat(labels, dim=0)
+            # shape torch.Size([16, 15, 3, 64]) (batch, joints, xyz, frames)
+        return activations, predictions
 
 
 def main(args_not_parsed):

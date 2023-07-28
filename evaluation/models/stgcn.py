@@ -92,8 +92,14 @@ class STGCN(nn.Module):
         x = x.view(N * M, C, T, V)
 
         # forward
+        feat_idx = 0
         for gcn, importance in zip(self.st_gcn_networks, self.edge_importance):
             x, _ = gcn(x, self.A * importance)
+            feat = x.clone()
+            feat = F.avg_pool2d(feat, feat.size()[2:]).view(N, M, -1, 1, 1).mean(dim=1)
+            feat = feat.squeeze()
+            batch[f"features_{feat_idx}"] = feat
+            feat_idx += 1
 
         # compute feature
         # _, c, t, v = x.size()

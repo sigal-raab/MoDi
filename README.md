@@ -113,6 +113,37 @@ python inverse_optim.py --ckpt ./data/ckpt.pt --out_path <results path> --target
 
 Use `--target_idx` to chose the index of a motion to invert from `edge_rot_data.npy` file. 
 
+## Encoder
+The encoder is able to invert motions into MoDi's latent space, enabling many applications. 
+
+### Pretrained Encoder
+Download the [pretrained encoder](https://drive.google.com/file/d/1AoyS3DCuqPNhlQfo7LkANa1TVqCLSM03/view?usp=sharing).
+
+
+### Applications
+
+The encoder enables the following applications: Inversion, Motion Fusion, Spatial Editing, Denoising, Prediction from Prefix.
+
+Download the encoder [test data](https://drive.google.com/file/d/1K6fPexKnWcue3_fYAbi_oSFq1nk4ihl_/view?usp=sharing) and place it under the `data` folder. Then, run the following:
+~~~bash
+ python generate_encoder.py --path ./data/test_edge_rot_data.npy --application inversion --ckpt_existing <pretrained_model_path> --ckpt <pretrained_encoder_path> --model_name <model name> --eval_id 34,54 --out_path <save_path>
+~~~
+Arguments:
+* `--application` can be one of the following: `[inversion, fusion, editing, editing_seed, denoising, auto_regressive]`
+* `--ckpt_existing` is given a path to the pretrained model.
+* `--ckpt` is given a path to the pretrained encoder.
+* `--eval_id` is a comma seperated list of indices from the test set that the encoder will be applied on. In the case of `editing_seed` application, `eval_id` is used as a seed for a generated motion. 
+
+
+### Train the Encoder
+To train the encoder from scratch download the [train](https://drive.google.com/file/d/13skti2Em_lQpAnM8pvTeR5ZfYF_G4_O2/view?usp=drive_link) and [test](https://drive.google.com/file/d/1K6fPexKnWcue3_fYAbi_oSFq1nk4ihl_/view?usp=sharing) data, place them under the `data` folder. Then, run the following command:
+~~~bash
+ python train_encoder.py --ckpt_existing=<pretrained_model_path> --name <experiment name> --path=./data/train_edge_rot_data.npy --n_latent_predict=2 --action_recog_model=evaluation/checkpoint_0300_globpos_acc_0.99.pth.tar --n_frames=0
+~~~
+
+Arguments:
+* `--ckpt_existing` is given a path to the pretrained model.
+
 ## Quntitative evaluation 
 The following metrics are computed during the evaluation: FID, KID, diversity, precision and recall.
 you can use the `--fast` argument to skip the precision and recall calculation which may take a few minutes.

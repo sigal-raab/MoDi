@@ -9,8 +9,8 @@ from utils.data import Edge, motion_from_raw
 class BaseOptions:
     def __init__(self):
         parser = argparse.ArgumentParser()
-        parser.add_argument("--device", type=str, default="cuda")
         self.parser = parser
+        parser.add_argument("--device", type=str, default="cuda")
 
     def parse_args(self, args=None):
         return self.after_parse(self.parser.parse_args(args))
@@ -27,11 +27,13 @@ class TrainBaseOptions(BaseOptions):
         parser.add_argument("--d_reg_every", type=int, default=16, help="interval of the applying r1 regularization")
         parser.add_argument("--d_lr", type=float, default=0.002, help="discriminator learning rate")
         parser.add_argument("--clearml", action="store_true", help="use trains logging")
+        parser.add_argument("--name", type=str, default="no_name_defined",
+                            help="name to be used for clearml experiment. example: Jasper_all_5K_no_norm_mixing_0p9_conv3_fan_in")
         parser.add_argument("--tensorboard", action="store_true", help="use tensorboard for loss recording")
         parser.add_argument("--model_save_path", type=str, default='checkpoint', help="path for saving model")
         parser.add_argument("--on_cluster_training", action='store_true',
                             help="When training on cluster, use standard print instead of tqdm")
-        parser.add_argument("--batch", type=int, default=16, help="batch sizes for each gpus")
+        parser.add_argument("--batch", type=int, default=16, help="batch sizes for each gpu")
         parser.add_argument("--dataset", type=str, default='mixamo', help="mixamo or humanact12")
         parser.add_argument("--iter", type=int, default=80000, help="total training iterations")
         parser.add_argument("--report_every", type=int, default=2000, help="number of iterations between saving model checkpoints")
@@ -40,6 +42,7 @@ class TrainBaseOptions(BaseOptions):
         parser.add_argument("--action_recog_model", type=str,
                             default='evaluation/checkpoint_0300_mixamo_acc_0.74_train_test_split_smaller_arch.tar',
                             help="pretrained action recognition model used for feature extraction when computing evaluation metrics FID, KID, diversity")
+        parser.add_argument("--ckpt", type=str, default=None, help="path to the checkpoints to resume training",)
 
 
 class TrainOptions(TrainBaseOptions):
@@ -47,22 +50,18 @@ class TrainOptions(TrainBaseOptions):
         super(TrainOptions, self).__init__()
         parser = self.parser
         parser.add_argument("--r1", type=float, default=10, help="weight of the r1 regularization")
-        parser.add_argument("--path_regularize",type=float,default=2,
-                            help="weight of the path length regularization",)
-        parser.add_argument("--path_batch_shrink",type=int,default=2,
-                            help="batch size reducing factor for the path length regularization (reduce memory consumption)")
+        parser.add_argument("--path_regularize", type=float, default=2, help="weight of the path length regularization")
+        parser.add_argument("--path_batch_shrink", type=int, default=2,
+                            help="batch size reducing factor for the path length regularization (reduce memory consumption)", )
         parser.add_argument("--g_foot_reg_weight", type=float, default=1,
                             help="weight of the foot contact regularization")
         parser.add_argument("--g_encourage_contact_weight", type=float, default=0.01,
                             help="weight of the foot contact encouraging regularization")
         parser.add_argument("--g_reg_every",type=int,default=4, help="interval of the applying path length regularization",)
         parser.add_argument("--mixing", type=float, default=0.9, help="probability of latent code mixing")
-        parser.add_argument("--ckpt", type=str, default=None, help="path to the checkpoints to resume training",)
         parser.add_argument("--g_lr", type=float, default=0.002, help="generator learning rate")
         parser.add_argument("--channel_multiplier", type=int, default=2,
                             help="channel multiplier factor for the model. config-f = 2, else = 1",)
-        parser.add_argument("--name", type=str, default="no_name_defined",
-                            help="name to be used for clearml experiment. example: Jasper_all_5K_no_norm_mixing_0p9_conv3_fan_in")
         parser.add_argument("--normalize", action="store_true", help="normalize data")
         parser.add_argument("--local_rank", type=int, default=0, help="local rank for distributed training")
         parser.add_argument("--skeleton", action="store_true", help="use skeleton-aware architecture")
@@ -94,6 +93,54 @@ class TrainOptions(TrainBaseOptions):
         assert (not (args.skeleton | args.conv3 | args.joints_pool)) | args.skeleton & (args.conv3 ^ args.joints_pool)
         return args
 
+class TrainEncoderOptions(TrainBaseOptions):
+    def __init__(self):
+        super().__init__()
+        parser = self.parser
+        parser.add_argument("--ckpt_existing", type=str, required=True, help='path to existing generative model')
+        parser.add_argument("--n_frames", type=int, default=20, help='number of frames that is not masked')
+        parser.add_argument("--keep_loc", type=int, default=0)
+        parser.add_argument("--keep_rot", type=int, default=0)
+        parser.add_argument("--n_latent_predict", type=int, default=1,
+                            help='number of latent to predict, 1 for W space, bigger than 1 for Wplus spaces')
+        parser.add_argument("--loss_type", type=str, default='L2')
+        parser.add_argument("--overfitting", type=int, default=0)
+        parser.add_argument("--lambda_pos", type=float, default=1.)
+        parser.add_argument("--lambda_rec", type=float, default=10.)
+        parser.add_argument("--lambda_contact", type=float, default=1000.)
+        parser.add_argument("--lambda_global_pos", type=float, default=20.)
+        parser.add_argument("--lambda_disc", type=float, default=0.)
+        parser.add_argument("--lambda_reg", type=float, default=0.)
+        parser.add_argument("--lambda_foot_contact", type=float, default=0.)
+        parser.add_argument("--use_local_pos", type=int, default=1)
+        # taken from train args
+        parser.add_argument("--truncation_mean", type=int, default=4096,
+                            help="number of vectors to calculate mean for the truncation")
+        parser.add_argument("--encoder_latent_rec_idx", default=4,
+                            help="which discriminator layer will be the one used for latent reconstruction?")
+        parser.add_argument("--mask_extra_channel", type=int, default=0)
+        parser.add_argument("--mask_fill_noise", type=int, default=0)
+        parser.add_argument("--partial_loss", type=int, default=0)
+        parser.add_argument("--r1", type=float, default=10, help="weight of the r1 regularization for discrim.")
+        parser.add_argument("--g_reg_every", type=int, default=4,
+                            help="interval of the applying path length regularization")
+        parser.add_argument("--path_regularize", type=float, default=2, help="weight of the path length regularization")
+        parser.add_argument("--noise_level", type=float, default=0)
+        parser.add_argument("--train_disc", type=int, default=0)
+        parser.add_argument("--empty_disc", type=int, default=0)
+        parser.add_argument("--partial_disc", type=int, default=0)
+        parser.add_argument("--disc_freq", type=int, default=1)
+        parser.add_argument("--train_with_generated", type=int, default=0)
+        parser.add_argument("--variable_mask", type=int, default=0)
+        parser.add_argument("--use_half_rec_model", type=int, default=0)
+
+    def after_parse(self, args):
+        args = super().after_parse(args)
+        if args.use_half_rec_model:
+            assert args.action_recog_model == './evaluation/checkpoint_0300_no_globpos_32frames_acc_0.98.pth'
+        return args
+
+
 class TestBaseOptions(BaseOptions):
     def __init__(self):
         super(TestBaseOptions, self).__init__()
@@ -112,10 +159,31 @@ class TestBaseOptions(BaseOptions):
         parser.add_argument("--simple_idx", type=int, default=0, help="use simple idx for output bvh files")
         self.parser = parser
 
+def _parse_list_nums(s):
+    ''' accept comma seperated list of strings and return list of strings'''
+    vals = s.split(',')
+    return [int(v) for v in vals]
+
+
+class TestEncoderOptions(TestBaseOptions):
+    def __init__(self):
+        super().__init__()
+        parser = self.parser
+        parser.add_argument("--full_eval", action='store_true')
+        parser.add_argument("--ckpt_existing", type=str, required=False, help='path to existing generative model. Taken from the encoder checkpoint. Should have a value if want to use a different checkpoint than the one saved in the encoder')
+        parser.add_argument("--model_name", type=str, required=True)
+        parser.add_argument("--eval_id", type=_parse_list_nums, help='list of idx for encoder. When using fusion application only first two indices apply.')
+        parser.add_argument("--n_frames_override", type=int, help='number of frames that is not masked override encoder arguments')
+        parser.add_argument("--application", type=str, default='inversion',
+                            choices=['inversion', 'fusion', 'editing', 'editing_seed', 'denoising',
+                                      'auto_regressive'])
+        parser.add_argument("--n_frames_autoregressive", type=int, default=128)
+
 
 class OptimOptions(TestBaseOptions):
     def __init__(self):
         super(OptimOptions, self).__init__()
+        parser = self.parser
         self.parser.add_argument("--lr", default=0.1, type=float, help="learning rate")
         self.parser.add_argument("--target_idx", default=0, type=int)
         self.parser.add_argument("--lambda_disc", default=0, type=float)
@@ -205,7 +273,7 @@ def _parse_num_range(s):
     range_re = re.compile(r'^(\d+)-(\d+)$')
     m = range_re.match(s)
     if m:
-        return list(range(int(m.group(1)), int(m.group(2))+1))
+        return list(range(int(m.group(1)), int(m.group(2)) + 1))
     vals = s.split(',')
     return [int(x) for x in vals]
 
@@ -258,7 +326,7 @@ def setup_env(args, get_traits=False):
         return traits_class
 
 
-def load_all_form_checkpoint(ckpt_path, args, return_motion_data=False):
+def load_all_form_checkpoint(ckpt_path, args, return_motion_data=False, empty_disc=False, return_edge_rot_dict_general=False):
     """Load everything from the path"""
 
     checkpoint = torch.load(ckpt_path)

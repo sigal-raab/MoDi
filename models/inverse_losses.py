@@ -1,4 +1,5 @@
 import torch
+from train import g_foot_contact_loss_v2
 import numpy as np
 import torch.nn.functional as F
 from models.kinematics import ForwardKinematicsJoint
@@ -61,3 +62,14 @@ class PositionLoss:
         pred = self.get_pos(pred)
         target = self.get_pos(target)
         return self.criteria(pred, target)
+
+
+class FootContactUnsupervisedLoss(torch.nn.Module):
+    def __init__(self, args, edge_rot_dict_general):
+        super(FootContactUnsupervisedLoss, self).__init__()
+        self.args = args
+        self.edge_rot_dict_general = edge_rot_dict_general
+
+    def forward(self, input, target=None):
+        foot_contact = g_foot_contact_loss_v2(input, self.args.glob_pos, self.args.axis_up, self.edge_rot_dict_general)
+        return foot_contact
