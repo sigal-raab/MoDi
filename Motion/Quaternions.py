@@ -155,6 +155,9 @@ class Quaternions:
     
     def __getitem__(self, k):    return Quaternions(self.qs[k]) 
     def __setitem__(self, k, v): self.qs[k] = v.qs
+
+    def __repr__(self):
+        return f'Quaternion({self.qs.shape})'
         
     @property
     def lengths(self):
