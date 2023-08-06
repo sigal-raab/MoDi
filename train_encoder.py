@@ -113,8 +113,8 @@ def train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, edge_rot_d
 
             real_img_aug = real_img
 
-            fake_pred, rec_latent, rec_inject_index = discriminator(disc_mask * rec_img)
-            real_pred, rec_real_latent, rec_real_inject_index = discriminator(disc_mask * real_img_aug)
+            fake_pred, rec_latent = discriminator(disc_mask * rec_img)
+            real_pred, rec_real_latent = discriminator(disc_mask * real_img_aug)
             d_loss = d_logistic_loss(real_pred, fake_pred)
 
             loss_dict["d"] = d_loss
@@ -130,7 +130,7 @@ def train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, edge_rot_d
 
             if d_regularize:
                 real_img.requires_grad = True
-                real_pred, _, _ = discriminator(real_img)
+                real_pred, _= discriminator(real_img)
                 r1_loss = d_r1_loss(real_pred, real_img)
 
                 discriminator.zero_grad()
@@ -149,14 +149,14 @@ def train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, edge_rot_d
         requires_grad(discriminator, False)
 
         fake_img = make_mask(real_img)
-        _, rec_latent, _ = encoder(fake_img)
+        _, rec_latent = encoder(fake_img)
         rec_img, _, _ = g_ema([rec_latent], input_is_latent=True)
 
 
         if args.train_disc and args.partial_disc:
-            fake_pred, rec_latent, rec_inject_index = discriminator(rec_img * disc_mask)
+            fake_pred, rec_latent = discriminator(rec_img * disc_mask)
         else:
-            fake_pred, rec_latent, rec_inject_index = discriminator(rec_img)
+            fake_pred, rec_latent = discriminator(rec_img)
 
 
         rec_img_full = rec_img
@@ -312,7 +312,6 @@ def main(args_not_parsed):
     encoder = Discriminator(traits_class=traits_class, entity=entity,
                             latent_dim=args.latent,
                             latent_rec_idx=int(args.encoder_latent_rec_idx), n_latent_predict=args.n_latent_predict,
-                            mask_extra_channel=args.mask_extra_channel
                             ).to(device)
 
     e_reg_ratio = args.d_reg_every / (args.d_reg_every + 1)
@@ -365,8 +364,7 @@ def main(args_not_parsed):
     )
 
     make_mask = ConditionalMask(args, n_frames=args.n_frames, keep_loc=args.keep_loc, keep_rot=args.keep_rot,
-                                edge_rot_dict_general=edge_rot_dict_general, noise_level=args.noise_level,
-                                variable_mask=args.variable_mask)
+                                edge_rot_dict_general=edge_rot_dict_general, noise_level=args.noise_level)
 
     train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, edge_rot_dict_general, logger, make_mask,
               discriminator, mean_latent)

@@ -41,7 +41,7 @@ def eval_input(img, encoder, g_ema, device, mask_make=None, n_frames=None, mixed
     img = img.float().to(device)
     img = img.transpose(1, 2)
     img = mask_make(img, cond_length=n_frames)
-    _, rec_latent, _ = encoder(img)
+    _, rec_latent = encoder(img)
 
     if mixed_generation:
         latents = [inject_with_latent(rec_latent, g_ema, inject_idx=6)]
@@ -83,7 +83,7 @@ def test_encoder(args, loader, encoder, g_ema, device, edge_rot_dict_general, ma
         real_img = real_img.transpose(1, 2) #  joints x coords x frames  ==>   coords x joints x frames
 
         fake_img = make_mask(real_img)
-        _, rec_latent, _ = encoder(fake_img)
+        _, rec_latent = encoder(fake_img)
         rec_img, _, _ = g_ema([rec_latent], input_is_latent=True)
         for key in losses.keys():
             loss_criteria = eval(key)
@@ -115,13 +115,6 @@ def main(args_not_parsed):
     ckpt = torch.load(test_args.ckpt, map_location=device)
     args = ckpt['args']
 
-    if not 'mask_extra_channel' in args:
-        args.mask_extra_channel = 0
-    if not 'mask_fill_noise' in args:
-        args.mask_fill_noise = 0
-    if not 'variable_mask' in args:
-        args.variable_mask = 0
-
     # override arguments that were not used when training encoder
     if test_args.ckpt_existing is not None:
         args.ckpt_existing = test_args.ckpt_existing
@@ -141,7 +134,6 @@ def main(args_not_parsed):
     encoder = Discriminator(traits_class=traits_class, entity=entity,
                             latent_dim=args.latent,
                             latent_rec_idx=int(args.encoder_latent_rec_idx), n_latent_predict=args.n_latent_predict,
-                            mask_extra_channel=args.mask_extra_channel
                             ).to(device)
     encoder.load_state_dict(ckpt['e'])
 
@@ -149,8 +141,7 @@ def main(args_not_parsed):
 
     make_mask = ConditionalMask(args, n_frames=args.n_frames,
                                 keep_loc=args.keep_loc, keep_rot=args.keep_rot,
-                                edge_rot_dict_general=edge_rot_dict_general,
-                                variable_mask=args.variable_mask)
+                                edge_rot_dict_general=edge_rot_dict_general)
 
     type2func = {'inversion': inversion, 'fusion': motion_fusion, 'editing': manual_editing ,
                  'editing_seed': manual_editing_seed, 'denoising': denoising, 'auto_regressive': auto_regressive }
@@ -203,7 +194,7 @@ def auto_regressive_exec(img, encoder, g_ema, device, make_mask, n_frames):
             new_input[..., :n_cond_frames] = final_res[..., -n_cond_frames:]
             new_input = make_mask(new_input, cond_length=make_mask.n_frames)
 
-            _, rec_latent, _ = encoder(new_input)
+            _, rec_latent = encoder(new_input)
             rec_latent = inject_with_latent(rec_latent, g_ema, inject_idx=6)
             rec_img, _, _ = g_ema([rec_latent], input_is_latent=True, truncation=1, truncation_latent=g_ema.mean_latent)
 

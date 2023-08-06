@@ -119,8 +119,6 @@ class TrainEncoderOptions(TrainBaseOptions):
                             help="number of vectors to calculate mean for the truncation")
         parser.add_argument("--encoder_latent_rec_idx", default=4,
                             help="which discriminator layer will be the one used for latent reconstruction?")
-        parser.add_argument("--mask_extra_channel", type=int, default=0)
-        parser.add_argument("--mask_fill_noise", type=int, default=0)
         parser.add_argument("--partial_loss", type=int, default=0)
         parser.add_argument("--r1", type=float, default=10, help="weight of the r1 regularization for discrim.")
         parser.add_argument("--g_reg_every", type=int, default=4,
@@ -132,7 +130,6 @@ class TrainEncoderOptions(TrainBaseOptions):
         parser.add_argument("--partial_disc", type=int, default=0)
         parser.add_argument("--disc_freq", type=int, default=1)
         parser.add_argument("--train_with_generated", type=int, default=0)
-        parser.add_argument("--variable_mask", type=int, default=0)
         parser.add_argument("--use_half_rec_model", type=int, default=0)
 
     def after_parse(self, args):
@@ -233,6 +230,7 @@ class EvaluateOptions(TestBaseOptions):
         parser.add_argument('--act_rec_gt_path', type=str,
                             help='path to ground truth file that was used during action recognition train. Not needed unless is different from the one used by the synthesis network')
         parser.add_argument('--actor_motions_path', type=str, help='path to randomly generated actor motions')
+        parser.add_argument('--fast', action='store_true', help='skip metrics that require long evaluation')
 
 
 class EditOptions(TestBaseOptions):

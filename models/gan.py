@@ -733,7 +733,7 @@ class ResBlock(nn.Module):
 
 class Discriminator(nn.Module):
     def __init__(self, blur_kernel=[1, 3, 3, 1], traits_class=None, entity=None, reconstruct_latent=False, latent_dim=None, latent_rec_idx=None, n_inplace_conv=1,
-                 n_latent_predict=0, mask_extra_channel=0):
+                 n_latent_predict=0):
         super().__init__()
 
         if traits_class.is_pool():
@@ -744,7 +744,7 @@ class Discriminator(nn.Module):
         self.n_levels = traits_class.n_levels(entity)
 
         skeleton_traits = traits_class(parents=entity.parents_list[-1], pooling_list=keep_skeletal_dims(n_joints[-1]))
-        convs = [ConvLayer(entity.n_channels + mask_extra_channel, self.n_channels[-1], 1, skeleton_traits=skeleton_traits)] # channel-wise expansion. keep dims. kernel=1
+        convs = [ConvLayer(entity.n_channels, self.n_channels[-1], 1, skeleton_traits=skeleton_traits)] # channel-wise expansion. keep dims. kernel=1
 
         in_channel = self.n_channels[-1]
 
@@ -814,16 +814,15 @@ class Discriminator(nn.Module):
             latent_base = out
         if self.latent_predictor is not None:
             rec_latent = self.latent_predictor(latent_base)
-            inject_index = None
         else:
-            rec_latent, inject_index = None, None
+            rec_latent = None
 
         if not self.latent_predictor:
             out = self.final_linear(out)
         else:
             out = None
 
-        return out, rec_latent, inject_index
+        return out, rec_latent
 
 def keep_skeletal_dims(n_joints):
     return {joint_idx:[joint_idx] for joint_idx in range(n_joints)}

@@ -10,17 +10,13 @@ class ConditionalMask:
     """
     This is a class used for create a masked input, for motion completion or motion inbetween
     """
-    def __init__(self, args, n_frames, keep_loc, keep_rot, edge_rot_dict_general=None, noise_level=0.,
-                 variable_mask=False):
+    def __init__(self, args, n_frames, keep_loc, keep_rot, edge_rot_dict_general=None, noise_level=0.):
         """
         Negative n_frames for in between
         """
         self.pos_offset = -3 if args.foot else -1 # global position idx
         self.rot_offset = 0 # pelvis idx rotations
-        self.extra_channel = args.mask_extra_channel
-        self.fill_noise = args.mask_fill_noise
         self.noise_level = noise_level
-        self.variable_mask = variable_mask
 
         # todo: remove the std mean related code when releasing
         if edge_rot_dict_general is not None:
@@ -28,8 +24,6 @@ class ConditionalMask:
             self.std = torch.tensor(self.std, dtype=torch.float32)
             self.mean = torch.tensor(self.mean, dtype=torch.float32)
         else:
-            if self.fill_noise:
-                raise Exception('Missing std and mean for noise filling')
             self.std, self.mean = None, None
 
         if n_frames == 0:
@@ -51,20 +45,13 @@ class ConditionalMask:
 
         if self.func == 'inversion':
             return motion
-        if self.fill_noise:
-            # res = torch.randn_like(motion) * self.std.to(motion.device) + self.mean.to(motion.device)
-            res = torch.randn_like(motion)
         else:
             res = torch.zeros_like(motion)
 
-        n_frames = random.randint(5, self.n_frames) if self.variable_mask else self.n_frames
         if cond_length is not None:
-            if self.variable_mask:
-                n_frames = cond_length
-            elif cond_length != self.n_frames:
+            if cond_length != self.n_frames:
                 print('Warning: cond_length != self.n_frames')
                 n_frames = cond_length
-                # raise Exception('Cannot set mask length when variable mask is not supported')
 
         indicator = torch.zeros_like(motion[:, :1, ...])
         if self.func == 'mask':
@@ -79,9 +66,6 @@ class ConditionalMask:
             for sli in (slice(0, n_frames), slice(-n_frames, None)):
                 res[..., sli] = motion[..., sli]
                 indicator[..., sli] = 1
-
-        if self.extra_channel:
-            res = torch.cat([res, indicator], dim=1)
 
         if indicator_only:
             return indicator
