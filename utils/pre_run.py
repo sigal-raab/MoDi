@@ -3,7 +3,7 @@ import re
 import numpy as np
 import torch
 from models.gan import Generator, Discriminator
-from utils.data import Edge, motion_from_raw
+from utils.data import Edge, Joint, motion_from_raw
 
 # region Parser Options
 class BaseOptions:
