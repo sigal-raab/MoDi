@@ -210,8 +210,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True)
 
-        fake_pred, _, _ = discriminator(fake_img)
-        real_pred, _, _ = discriminator(real_img)
+        fake_pred, _ = discriminator(fake_img)
+        real_pred, _ = discriminator(real_img)
         d_loss = d_logistic_loss(real_pred, fake_pred)
 
         loss_dict["d"] = d_loss
@@ -226,7 +226,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
         if d_regularize:
             real_img.requires_grad = True
-            real_pred, _, _ = discriminator(real_img)
+            real_pred, _= discriminator(real_img)
             r1_loss = d_r1_loss(real_pred, real_img)
 
             discriminator.zero_grad()
@@ -245,7 +245,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         noise = mixing_noise(args.batch, args.latent, args.mixing, device)
         fake_img, gt_latents, inject_index = generator(noise, return_latents=True,
                                                        return_sub_motions=args.return_sub_motions)
-        fake_pred, _, _ = discriminator(fake_img)
+        fake_pred, _= discriminator(fake_img)
 
         g_loss = g_nonsaturating_loss(fake_pred)
 
