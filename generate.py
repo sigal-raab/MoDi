@@ -1,17 +1,19 @@
-import os.path as osp
 import os
-import datetime
 import re
-import pandas as pd
+import datetime
+import os.path as osp
 
 import torch
-import numpy as np
-from utils.visualization import motion2fig, motion2bvh
-import matplotlib.pyplot as plt
 import sys as _sys
-from utils.data import motion_from_raw, to_cpu
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from utils.data import to_cpu
+from models.gan import Generator
+from motion_class import DynamicData, StaticData
+from utils.visualization import motion2fig, motion_to_bvh
 from utils.pre_run import GenerateOptions, load_all_form_checkpoint
-from utils.data import Joint, Edge # to be used in 'eval'
 
 
 def interpolate(args, g_ema, device, mean_latent):
@@ -35,18 +37,20 @@ def interpolate(args, g_ema, device, mean_latent):
         else:
             W_to = mean_latent
 
-        generated_motion =[None] * num_interp
+        generated_motion = [None] * num_interp
         steps = torch.linspace(0, 1, num_interp, device=device)
 
         for interp_idx in np.arange(num_interp):
             cur_W = W_from.lerp(W_to, steps[interp_idx])
-            generated_motion[interp_idx], _, _ = g_ema(
+            interpolated_motion, _, _ = g_ema(
                 [cur_W],
                 truncation=1,
                 input_is_latent=True
             )
+            generated_motion[interp_idx] = to_cpu(interpolated_motion)
+
         interp_name = 'interp_{}-{}'.format(interp_seeds[0],'mean' if len(interp_seeds)==1 else interp_seeds[-1])
-        generated_motions.append((interp_name,generated_motion))
+        generated_motions.append((interp_name, generated_motion))
 
     return tuple(generated_motions)
 
@@ -106,22 +110,6 @@ def get_motion_std(args, motion):
     return std
 
 
-def load_motion_data(args, device, mean_joints, std_joints, indices=None, requires_general=False):
-    motion_data_raw = np.load(args.path, allow_pickle=True)
-    if indices is None:
-        indices = range(motion_data_raw.shape[0])
-    motion_data_raw = motion_data_raw[indices]
-    motion_data, _, _, edge_rot_dict_general = motion_from_raw(args, motion_data_raw)
-    motion_data = torch.from_numpy(motion_data)
-    motion_data = motion_data.float()  # loader produces doubles (64 bit), where network uses floats (32 bit)
-    motion_data = motion_data.transpose(1, 2)  # joints x coords x frames  ==>   coords x joints x frames
-    motion_data = motion_data.to(device)
-    if requires_general:
-        return motion_data, edge_rot_dict_general
-    else:
-        return motion_data
-
-
 def edit(args, g_ema, device, mean_latent):
     boundary = np.load(args.boundary_path, allow_pickle=True)
     if isinstance(boundary[0], dict):
@@ -168,20 +156,14 @@ def get_gen_mot_np(args, generated_motion, mean_joints, std_joints):
     return generated_motion, index
 
 
-def generate(args, g_ema, device, mean_joints, std_joints, entity):
+def generate(args, g_ema: Generator, device, mean_joints: torch.tensor, std_joints: torch.tensor,
+             motion_statics: StaticData, entity: str):
 
     type2func = {'interp': interpolate, 'sample': sample, 'edit': edit}
     with torch.no_grad():
         g_ema.eval()
         mean_latent = g_ema.mean_latent(args.truncation_mean)
         generated_motions = type2func[args.type](args, g_ema, device, mean_latent)
-
-    if entity.str() == 'Joint':
-        edge_rot_dict_general = None
-    else:
-        _, _, _, edge_rot_dict_general = motion_from_raw(args, np.load(args.path, allow_pickle=True))
-        edge_rot_dict_general['std_tensor'] = edge_rot_dict_general['std_tensor'].cpu()
-        edge_rot_dict_general['mean_tensor'] = edge_rot_dict_general['mean_tensor'].cpu()
 
     if args.out_path is not None:
         out_path = args.out_path
@@ -193,8 +175,9 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
             out_path = f'{out_path}_{args.motions}'
         os.makedirs(out_path, exist_ok=True)
     root_out_path = out_path
-    if not isinstance(generated_motions, tuple):
-        generated_motions = (generated_motions,)
+
+    generated_motions = (generated_motions,) if not isinstance(generated_motions, tuple) else generated_motions
+
     for generated_motion in generated_motions:
         out_path = root_out_path
         if isinstance(generated_motion, tuple):
@@ -213,16 +196,18 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
 
         # save motions
         motion_np, _ = get_gen_mot_np(args, generated_motion['motion'], mean_joints, std_joints)
-        prefix ='generated_'
+        prefix ='generated'
 
         # save one figure of several motions
         n_sampled_frames = 10
         n_motions = min(10, len(motion_np))
-        fig = motion2fig(motion_np, H=512, W=512, n_sampled_motions=n_motions,
-                         n_sampled_frames=n_sampled_frames,
-                         entity=entity.str(), edge_rot_dict_general=edge_rot_dict_general)
-        prefix_no_underscore = prefix.replace('_', '')
-        fig_name = osp.join(out_path, f'{prefix_no_underscore}.png')
+
+        motion_batch = torch.tensor([motion[0] for motion in motion_np]).permute(0, 2, 1, 3)
+        motions_all = DynamicData(motion_batch, motion_statics, use_velocity=args.use_velocity)
+        motions_all = motions_all.un_normalise(mean_joints.transpose(0, 2, 1, 3), std_joints.transpose(0, 2, 1, 3))
+        fig = motion2fig(motions_all[:5], motion_statics.character_name, entity=entity)
+
+        fig_name = osp.join(out_path, f'{prefix}.png')
         dpi = max(n_motions, n_sampled_frames) * 100
         fig.savefig(fig_name, dpi=dpi, bbox_inches='tight')
         plt.close()
@@ -235,9 +220,8 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
                 cluster_label = generated_motion.cluster_label[idx]
                 cluster_label = torch.argmax(cluster_label).item()
                 id = f'g{cluster_label:02d}_{id}'
-            motion2bvh(motion_np[i], osp.join(out_path, f'{prefix}{id}.bvh'),
-                       parents=entity.parents_list, type=args.type, entity=entity.str(),
-                       edge_rot_dict_general=edge_rot_dict_general)
+
+            motion_to_bvh(motions_all[i], osp.join(out_path, f'{prefix}_{id}.bvh'), entity, motion_statics.parents_list[-1])
 
     # save args
     pd.Series(args.__dict__).to_csv(osp.join(root_out_path, 'args.csv'), sep='\t', header=None)
@@ -261,8 +245,8 @@ def main(args_not_parsed):
     parser = GenerateOptions()
     args = parser.parse_args(args_not_parsed)
     device = args.device
-    g_ema, discriminator, checkpoint, entity, mean_joints, std_joints = load_all_form_checkpoint(args.ckpt, args)
-    out_path = generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
+    g_ema, _, _, motion_statics, mean_joints, std_joints, entity, args = load_all_form_checkpoint(args.ckpt, args)
+    out_path = generate(args, g_ema, device, mean_joints, std_joints, motion_statics=motion_statics, entity=entity)
     return out_path
 
 

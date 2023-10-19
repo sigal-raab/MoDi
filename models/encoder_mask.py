@@ -1,16 +1,14 @@
-import numpy as np
 import torch
+
+from motion_class import StaticData
 from models.kinematics import ForwardKinematicsJoint
-from evaluate import convert_motions_to_location, compute_features
-import copy
-import random
-from utils.data import Joint, Edge # used by the 'eval' command
+
 
 class ConditionalMask:
     """
     This is a class used for create a masked input, for motion completion or motion inbetween
     """
-    def __init__(self, args, n_frames, keep_loc, keep_rot, edge_rot_dict_general=None, noise_level=0.):
+    def __init__(self, args, n_frames, keep_loc, keep_rot, normalisation_data=None, noise_level=0.):
         """
         Negative n_frames for in between
         """
@@ -19,8 +17,8 @@ class ConditionalMask:
         self.noise_level = noise_level
 
         # todo: remove the std mean related code when releasing
-        if edge_rot_dict_general is not None:
-            self.std, self.mean = edge_rot_dict_general['std'], edge_rot_dict_general['mean']
+        if normalisation_data is not None:
+            self.std, self.mean = normalisation_data['std'], normalisation_data['mean']
             self.std = torch.tensor(self.std, dtype=torch.float32)
             self.mean = torch.tensor(self.mean, dtype=torch.float32)
         else:
@@ -114,28 +112,27 @@ class ContactLabelLoss:
 
 
 class PositionLoss:
-    def __init__(self, edge_rot_dict_general, device, use_glob_pos, use_contact, local_frame=False):
-        root_idx = 0
-        offsets = np.insert(edge_rot_dict_general['offsets_no_root'], root_idx, edge_rot_dict_general['offset_root'],
-                            axis=0)
-        offsets = torch.from_numpy(offsets).to(device).type(torch.float32)
+    def __init__(self, motion_statics : StaticData, use_glob_pos, use_contact, use_velocity,
+                 mean_joints, std_joints, local_frame=False):
         self.use_glob_pos = use_glob_pos
-        self.fk = ForwardKinematicsJoint(edge_rot_dict_general['parents_with_root'], offsets)
-        self.edge_rot_dict_general = edge_rot_dict_general
+        self.fk = ForwardKinematicsJoint(motion_statics .parents, torch.from_numpy(motion_statics .offsets).to('cuda'))
         self.criteria = torch.nn.MSELoss()
         self.local_frame = local_frame
         self.pos_offset = -3 if use_contact else -1
+        self.use_velocity = use_velocity
+
+        self.mean_joints = mean_joints
+        self.std_joints = std_joints
 
     def get_pos(self, motion_data):
-        edge_rot_dict_general = self.edge_rot_dict_general
-        motion_data = motion_data * edge_rot_dict_general['std_tensor'][:, :, :motion_data.shape[2]] + \
-                      edge_rot_dict_general['mean_tensor'][:, :, :motion_data.shape[2]]
+        motion_data = motion_data * self.std_joints[:, :, :motion_data.shape[2]] + \
+                      self.mean_joints[:, :, :motion_data.shape[2]]
         motion_for_fk = motion_data.transpose(1,
                                               3)  # samples x features x joints x frames  ==>  samples x frames x joints x features
         if self.use_glob_pos:
             #  last 'joint' is global position. use only first 3 features out of it.
             glob_pos = motion_for_fk[:, :, self.pos_offset, :3]
-            if 'use_velocity' in edge_rot_dict_general and edge_rot_dict_general['use_velocity']:
+            if self.use_velocity:
                 glob_pos = torch.cumsum(glob_pos, dim=1)
             if self.local_frame:
                 glob_pos.fill_(0.)
@@ -149,29 +146,28 @@ class PositionLoss:
         target = self.get_pos(target)
         return self.criteria(pred, target)
 
+
 class PositionLossRoot:
-    def __init__(self, edge_rot_dict_general, device, use_glob_pos, use_contact, local_frame=False):
-        root_idx = 0
-        offsets = np.insert(edge_rot_dict_general['offsets_no_root'], root_idx,
-                            edge_rot_dict_general['offset_root'],
-                            axis=0)
-        offsets = torch.from_numpy(offsets).to(device).type(torch.float32)
+    def __init__(self, motion_statics , device, use_glob_pos, use_contact, use_velocity,
+                 mean_joints, std_joints, local_frame=False):
         self.use_glob_pos = use_glob_pos
-        self.fk = ForwardKinematicsJoint(edge_rot_dict_general['parents_with_root'], offsets)
-        self.edge_rot_dict_general = edge_rot_dict_general
+        self.fk = ForwardKinematicsJoint(motion_statics .parents, motion_statics .offsets)
         self.criteria = torch.nn.MSELoss()
         self.local_frame = local_frame
         self.pos_offset = -3 if use_contact else -1
+        self.use_velocity = use_velocity
+
+        self.mean_joints = mean_joints
+        self.std_joints = std_joints
 
     def get_pos(self, motion_data):
-        edge_rot_dict_general = self.edge_rot_dict_general
-        motion_data = motion_data * edge_rot_dict_general['std_tensor'][:, :, :motion_data.shape[2]] + \
-                      edge_rot_dict_general['mean_tensor'][:, :, :motion_data.shape[2]]
+        motion_data = motion_data * self.std_joints[:, :, :motion_data.shape[2]] + \
+                      self.mean_joints[:, :, :motion_data.shape[2]]
         motion_for_fk = motion_data.transpose(1, 3)  # samples x features x joints x frames  ==>  samples x frames x joints x features
         if self.use_glob_pos:
             #  last 'joint' is global position. use only first 3 features out of it.
             glob_pos = motion_for_fk[:, :, self.pos_offset, :3]
-            if 'use_velocity' in edge_rot_dict_general and edge_rot_dict_general['use_velocity']:
+            if self.use_velocity:
                 glob_pos = torch.cumsum(glob_pos, dim=1)
                 return glob_pos
 

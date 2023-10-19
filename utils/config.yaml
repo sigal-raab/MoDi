@@ -1,0 +1,24 @@
+default:
+  feet_names: [ LeftFoot, RightFoot ]
+  requested_joints_names: [Head, Neck, Spine, Spine1, Spine2,
+                           RightShoulder, RightArm, RightForeArm, RightHand,
+                           LeftShoulder, LeftArm, LeftForeArm, LeftHand,
+                           Hips,
+                           RightUpLeg, RightLeg, RightFoot,
+                           LeftUpLeg, LeftLeg, LeftFoot]
+jasper:
+  requested_joints_names: [Head, Neck, Spine, Spine1, Spine2,
+                           RightShoulder, RightArm, RightForeArm, RightHand,
+                           LeftShoulder, LeftArm, LeftForeArm, LeftHand,
+                           Hips,
+                           RightUpLeg, RightLeg, RightFoot,
+                           LeftUpLeg, LeftLeg, LeftFoot]
+maw:
+  feet_names: [ LeftToeBase, RightToeBase, LeftFoot, RightFoot]
+  requested_joints_names: [Hips, Spine, Spine1, Spine2, Neck,
+                           Head, HeadTop_End, RightRope1, RightRope2, RightRope3, RightRope4,
+                           LeftShoulder, LeftArm, LeftForeArm, LeftHand,
+                           RightShoulder, RightArm, RightForeArm, RightHand,
+                           LeftUpLeg, LeftLeg, LeftFoot, LeftToeBase,
+                           RightUpLeg, RightLeg, RightFoot, RightToeBase,
+                           RightChain1, RightChain2, RightChain3, RightChain3_end_site]

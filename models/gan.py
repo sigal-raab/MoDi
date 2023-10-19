@@ -16,6 +16,9 @@ from torch.nn import functional as F
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 
 from models.skeleton import SkeletonUnpool
+from motion_class import StaticData, StaticMotionOneHierarchyLevel
+
+
 class LatentPrediction(nn.Module):
     def __init__(self, in_channel, latent_dim, n_latent, extra_linear=1):
         super().__init__()
@@ -42,7 +45,6 @@ class LatentPrediction(nn.Module):
             out = self.linear2(out)
         out = out.reshape(input.shape[0], self.n_latent, self.latent_dim)
         return out
-
 
 
 class PixelNorm(nn.Module):
@@ -169,7 +171,7 @@ class EqualConv(nn.Module):
             stride=self.stride,
             padding=self.padding,
         )
-        out = st.reshape_output_after_conv(out) # ==> batch, out_channel, out_height, out_width
+        out = st.reshape_output_after_conv(out)  # ==> batch, out_channel, out_height, out_width
 
         # i = torch.ones_like(input)
         # for ii in range(i.shape[-2]):  # each edge's value equals its index, for all samples, channels and frames
@@ -208,9 +210,7 @@ class EqualLinear(nn.Module):
             out = fused_leaky_relu(out, self.bias * self.lr_mul)
 
         else:
-            out = F.linear(
-                input, self.weight * self.scale, bias=self.bias * self.lr_mul
-            )
+            out = F.linear(input, self.weight * self.scale, bias=self.bias * self.lr_mul)
 
         return out
 
@@ -421,7 +421,7 @@ class StyledConv(nn.Module):
 
 class ToXYZ(nn.Module):
     def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=(1, 3, 3, 1),
-                 skeleton_traits=None, skip_pooling_list=None, entity=None):
+                 skeleton_traits=None, skip_pooling_list=None, motion_statics: StaticData=None):
         super().__init__()
 
         self.skel_aware = skeleton_traits.skeleton_aware()
@@ -436,9 +436,9 @@ class ToXYZ(nn.Module):
                                                       output_joints_num=skeleton_traits.larger_n_joints)
 
         # conv is destined for the input, which is already upsampled
-        self.conv = ModulatedConv(in_channel, entity.n_channels, 1, style_dim,
+        self.conv = ModulatedConv(in_channel, motion_statics.n_channels, 1, style_dim,
                                   demodulate=False, skeleton_traits=skeleton_traits)
-        self.bias = nn.Parameter(torch.zeros(1, entity.n_channels, 1, 1))
+        self.bias = nn.Parameter(torch.zeros(1, motion_statics.n_channels, 1, 1))
 
 
     def forward(self, input, style, skip=None):
@@ -464,15 +464,15 @@ class Generator(nn.Module):
         blur_kernel=[1, 3, 3, 1],
         lr_mlp=0.01,
         traits_class=None,
-        entity=None,
+        motion_statics=None,
         n_inplace_conv=1
     ):
         super().__init__()
 
         self.traits_class = traits_class
-        n_joints = traits_class.n_joints(entity)
-        self.n_channels = traits_class.n_channels(entity)
-        self.n_frames = traits_class.n_frames(entity)
+        n_joints = traits_class.n_joints(motion_statics)
+        self.n_channels = traits_class.n_channels(motion_statics)
+        self.n_frames = traits_class.n_frames(motion_statics)
 
         # unlike stylegan2 for images, here target size is a const.
         # not used but kept here for similarity with original code
@@ -494,13 +494,14 @@ class Generator(nn.Module):
         self.input = ConstantInput(self.n_channels[0], size=(n_joints[0], self.n_frames[0]))
         # end mapping network and constant
 
-        skeleton_traits1 = traits_class(entity.parents_list[0], keep_skeletal_dims(n_joints[0]))
+        layer0 = motion_statics.hierarchical_keep_dim_layer(layer=0)
+        skeleton_traits1 = traits_class(layer0)
         self.conv1 = StyledConv(
             self.n_channels[0], self.n_channels[0], 3, style_dim,
             blur_kernel=blur_kernel, skeleton_traits=skeleton_traits1
         )
         self.to_xyz1 = ToXYZ(self.n_channels[0], style_dim, upsample=False,
-                             skeleton_traits=skeleton_traits1, entity=entity)
+                             skeleton_traits=skeleton_traits1, motion_statics=motion_statics)
 
         if traits_class.is_pool():
             n_inplace_conv -= 1  # the pooling block already contains one inplace convolution
@@ -517,9 +518,10 @@ class Generator(nn.Module):
 
         for i in range(1, len(self.n_channels)):
             out_channel = self.n_channels[i]
-            cur_parents = entity.parents_list[i]
+            cur_parents = motion_statics.parents_list[i]
 
-            skeleton_traits_upsample = traits_class(cur_parents, entity.skeletal_pooling_dist_1[i - 1])
+            layer_i = motion_statics.hierarchical_upsample_layer(layer=i)
+            skeleton_traits_upsample = traits_class(layer_i)
             # upsample
             self.convs.append(
                 StyledConv(
@@ -533,7 +535,8 @@ class Generator(nn.Module):
                 )
             )
 
-            skeleton_traits_keep_dims = traits_class(cur_parents, keep_skeletal_dims(n_joints[i]))
+            layer_i = motion_statics.hierarchical_keep_dim_layer(layer=i)
+            skeleton_traits_keep_dims = traits_class(layer_i)
             # keep dims
             for _ in range(n_inplace_conv):
                 self.convs.append(
@@ -544,7 +547,7 @@ class Generator(nn.Module):
                 )
 
             self.to_xyzs.append(ToXYZ(out_channel, style_dim, skeleton_traits=skeleton_traits_keep_dims,
-                                      skip_pooling_list=entity.skeletal_pooling_dist_1[i - 1], entity=entity))
+                                      skip_pooling_list=motion_statics.skeletal_pooling_dist_1[i - 1], motion_statics =motion_statics ))
 
             in_channel = out_channel
 
@@ -702,15 +705,11 @@ class ConvLayer(nn.Sequential):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channel, out_channel, blur_kernel=[1, 3, 3, 1], skeleton_traits_for_kernel_3=None,
-                 skeleton_traits_for_kernel_1=None, n_inplace_conv=1):
+    def __init__(self, in_channel, out_channel, skeleton_traits_for_kernel_3,
+                 skeleton_traits_for_kernel_1, skeleton_traits_keep_dims, n_inplace_conv=1):
         super().__init__()
 
         self.n_inplace_conv = n_inplace_conv
-        larger_n_joints = skeleton_traits_for_kernel_3.larger_n_joints
-        traits_class = type(skeleton_traits_for_kernel_3)
-        skeleton_traits_keep_dims = traits_class(skeleton_traits_for_kernel_3.parents,
-                                                 keep_skeletal_dims(larger_n_joints))
 
         convs = []
         for _ in range(n_inplace_conv):
@@ -732,29 +731,37 @@ class ResBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, blur_kernel=[1, 3, 3, 1], traits_class=None, entity=None, reconstruct_latent=False, latent_dim=None, latent_rec_idx=None, n_inplace_conv=1,
+    def __init__(self, blur_kernel=[1, 3, 3, 1], traits_class=None, motion_statics =None, reconstruct_latent=False, latent_dim=None, latent_rec_idx=None, n_inplace_conv=1,
                  n_latent_predict=0):
         super().__init__()
 
         if traits_class.is_pool():
             n_inplace_conv -= 1  # the pooling block already contains one inplace convolution
-        n_joints = traits_class.n_joints(entity)
-        self.n_channels = traits_class.n_channels(entity)
-        self.n_frames = traits_class.n_frames(entity)
-        self.n_levels = traits_class.n_levels(entity)
+        n_joints = traits_class.n_joints(motion_statics )
+        self.n_channels = traits_class.n_channels(motion_statics )
+        self.n_frames = traits_class.n_frames(motion_statics )
+        self.n_levels = traits_class.n_levels(motion_statics )
 
-        skeleton_traits = traits_class(parents=entity.parents_list[-1], pooling_list=keep_skeletal_dims(n_joints[-1]))
-        convs = [ConvLayer(entity.n_channels, self.n_channels[-1], 1, skeleton_traits=skeleton_traits)] # channel-wise expansion. keep dims. kernel=1
+        layer_i = motion_statics .hierarchical_keep_dim_layer(layer=-1)
+        skeleton_traits = traits_class(layer_i)
+
+        convs = [ConvLayer(motion_statics .n_channels, self.n_channels[-1], 1, skeleton_traits=skeleton_traits)] # channel-wise expansion. keep dims. kernel=1
 
         in_channel = self.n_channels[-1]
 
         for i in range(self.n_levels-1, 0, -1):
             out_channel = self.n_channels[i-1]
-            skeleton_traits_for_kernel_3 = traits_class(entity.parents_list[i], entity.skeletal_pooling_dist_1[i - 1])
-            skeleton_traits_for_kernel_1 = traits_class(entity.parents_list[i], entity.skeletal_pooling_dist_0[i - 1])
 
-            convs.append(ResBlock(in_channel, out_channel, blur_kernel, skeleton_traits_for_kernel_3,
-                                  skeleton_traits_for_kernel_1, n_inplace_conv))
+            upsample_layer_1 = motion_statics .hierarchical_upsample_layer(layer=i)
+            upsample_layer_0 = motion_statics .hierarchical_upsample_layer(layer=i, pooling_dist=0)
+            keep_layer = motion_statics .hierarchical_keep_dim_layer(layer=i)
+
+            skeleton_traits_for_kernel_3 = traits_class(upsample_layer_1)
+            skeleton_traits_for_kernel_1 = traits_class(upsample_layer_0)
+            skeleton_traits_keep_dims = traits_class(keep_layer)
+
+            convs.append(ResBlock(in_channel, out_channel, skeleton_traits_for_kernel_3,
+                                  skeleton_traits_for_kernel_1, skeleton_traits_keep_dims, n_inplace_conv))
 
             in_channel = out_channel
 
@@ -763,7 +770,9 @@ class Discriminator(nn.Module):
         self.stddev_group = 4
         self.stddev_feat = 1
 
-        skeleton_traits = traits_class(entity.parents_list[0], keep_skeletal_dims(n_joints[0]))
+        layer_i = motion_statics .hierarchical_keep_dim_layer(layer=0)
+        skeleton_traits = traits_class(layer_i)
+
         self.final_conv = ConvLayer(in_channel + 1, self.n_channels[0], 3, skeleton_traits=skeleton_traits) # channels 257-->256, keep dims, kernel=3
         self.final_linear = nn.Sequential(
             EqualLinear(self.n_channels[0] * n_joints[0] * self.n_frames[0], self.n_channels[0], activation='fused_lrelu'),
@@ -824,5 +833,6 @@ class Discriminator(nn.Module):
 
         return out, rec_latent
 
+
 def keep_skeletal_dims(n_joints):
-    return {joint_idx:[joint_idx] for joint_idx in range(n_joints)}
+    return {joint_idx: [joint_idx] for joint_idx in range(n_joints)}

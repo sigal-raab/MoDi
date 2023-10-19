@@ -5,17 +5,23 @@ import cv2
 import math
 import matplotlib.pyplot as plt
 import copy
+from typing import Union
 
 from utils.data import expand_topology_joints
 from Motion import InverseKinematics as IK
 from Motion import Animation
 from Motion import BVH
-from utils.data import Joint, Edge
+from utils.data import Joint
 from utils.data import calc_bone_lengths
-from utils.data import edge_rot_dict_from_edge_motion_data, anim_from_edge_rot_dict
-from utils.data import to_list_4D, un_normalize
+from motion_class import StaticData, DynamicData
 
-def pose2im_all(all_peaks, H=512, W=512):
+
+FIGURE_JOINTS = ['Head', 'Neck', 'RightArm', 'RightForeArm', 'RightHand', 'LeftArm',
+                 'LeftForeArm', 'LeftHand', 'Hips', 'RightUpLeg', 'RightLeg',
+                 'RightFoot', 'LeftUpLeg', 'LeftLeg', 'LeftFoot']
+
+
+def pose2im_all(all_peaks, H=512, W=512, foot_contact_info=None):
     limbSeq = [[1, 2], [2, 3], [3, 4],                       # right arm
                [1, 5], [5, 6], [6, 7],                       # left arm
                [8, 9], [9, 10], [10, 11],                    # right leg
@@ -38,7 +44,7 @@ def pose2im_all(all_peaks, H=512, W=512):
                     [255, 170, 0], [255, 85, 0], [255, 0, 0],
                     ]
 
-    image = pose2im(all_peaks, limbSeq, limb_colors, joint_colors, H, W)
+    image = pose2im(all_peaks, limbSeq, limb_colors, joint_colors, H, W, foot_contact_info=foot_contact_info)
     return image
 
 
@@ -66,13 +72,24 @@ def stretch(data, H, W):
     return data
 
 
-def pose2im(all_peaks, limbSeq, limb_colors, joint_colors, H, W, _circle=True, _limb=True, imtype=np.uint8):
+def pose2im(all_peaks, limbSeq, limb_colors, joint_colors, H, W,
+            _circle=True, _limb=True, imtype=np.uint8, foot_contact_info=None):
     canvas = np.zeros(shape=(H, W, 3))
     canvas.fill(255)
 
     if _circle:
         for i in range(len(joint_colors)):
             cv2.circle(canvas, (int(all_peaks[i][0]), int(all_peaks[i][1])), 2, joint_colors[i], thickness=2)
+
+    if foot_contact_info:
+        for foot_idx in foot_contact_info:
+            if foot_contact_info[foot_idx] > 0.5:
+                thickness = -1
+            else:
+                thickness = 2
+
+            cv2.circle(canvas, center=(int(all_peaks[foot_idx][0]), int(all_peaks[foot_idx][1])), radius=20,
+                       color=(0, 0, 0), thickness=thickness)
 
     if _limb:
         stickwidth = 2
@@ -117,68 +134,43 @@ def motion2fig_1_motion_3_angles(data, H=512, W=512):
     return fig
 
 
-# motion2fig_multiple_motions
-def motion2fig(data, H=512, W=512, n_sampled_motions=5, n_sampled_frames=5, entity='Joint', edge_rot_dict_general=None):
+def foot_info(motions_all: DynamicData):
+    foot_contact_info = [[{FIGURE_JOINTS.index(foot_name): frame[foot_name] for foot_name in frame if foot_name in FIGURE_JOINTS}
+                          for frame in motion]
+                         for motion in motions_all.foot_contact()]
 
-    # in case data contains sub-motions, use only the full ones
-    if isinstance(data[0], list):
-        data = [motion[-1] for motion in data]
-        data = np.concatenate(data)
+    return foot_contact_info
 
-    # data coming from 'generate' can be a list
-    if isinstance(data, list):
-        data = np.vstack(data)
 
-    # determine which motions to sample
-    if n_sampled_motions is None or n_sampled_motions > data.shape[0]:
-        n_sampled_motions = min(data.shape[0], 10)
-    sampled_motions = np.arange(n_sampled_motions)
+def motion2fig(motions_all: DynamicData, character_name: str,
+               height=512, width=512, n_sampled_frames=5, entity='Edge'):
+    if all([joint in motion_all.motion_statics.names for joint in FIGURE_JOINTS]):
+        print(f'Visualisation figure generation is configured only for mixamo characters containing joint {FIGURE_JOINTS}')
+        return None
+    
+    n_sampled_motions = motions_all.shape[0]
 
-    # determine which frames to sample
-    n_frames = data.shape[-1]
-    if n_sampled_frames is None:
-        n_sampled_frames = n_frames # how many samples to take from the whole video
-    sampled_frames = np.linspace(0, n_frames-1, n_sampled_frames).round().astype(int)
+    if entity == 'Edge':
+        anim, names = motions_all[0].to_anim()
 
-    if 'Edge' in entity:
-        # data shape: n_samples x n_joints x n_features x n_frames
-
-        assert not isinstance(data, list) and not isinstance(data[0], dict)
-
-        data = data * edge_rot_dict_general['std'].transpose(0, 2, 1, 3) + edge_rot_dict_general['mean'].transpose(0, 2, 1, 3)
-
-        sampled_data = data[sampled_motions][:, :, :, sampled_frames]
-        sampled_data = to_list_4D(sampled_data)
-        sampled_edge_rot_dict_general = copy.deepcopy(edge_rot_dict_general)
-        sampled_edge_rot_dict_general['rot_edge_no_root'] = sampled_edge_rot_dict_general['rot_edge_no_root'][sampled_frames]
-        sampled_edge_rot_dict_general['pos_root'] = sampled_edge_rot_dict_general['pos_root'][sampled_frames]
-        sampled_edge_rot_dict_general['rot_root'] = sampled_edge_rot_dict_general['rot_root'][sampled_frames]
-
-        edge_rots_dict, _, _ = edge_rot_dict_from_edge_motion_data(sampled_data, edge_rot_dict_general=sampled_edge_rot_dict_general)
-
-        one_anim, names = anim_from_edge_rot_dict(sampled_edge_rot_dict_general)
-        one_anim_shape = one_anim.shape
-        joints = np.zeros((n_sampled_motions,) + one_anim_shape + (3,))
-        for idx, one_edge_rot_dict in enumerate(edge_rots_dict):
-            anim, _ = anim_from_edge_rot_dict(one_edge_rot_dict)
+        joints = np.zeros((n_sampled_motions,) + anim.shape + (3,))
+        for idx, motion_all in enumerate(motions_all):
+            anim, _ = motion_all.to_anim()
             joints[idx] = Animation.positions_global(anim)
 
-        anim_joints_1_to_open_pose = [7, 6, 15, 16, 17, 10, 11, 12, 0, 23, 24, 25, 19, 20, 21]
-        data = joints[:, :, anim_joints_1_to_open_pose, :]
+        names = list(names)
+        figure_indexes = [names.index(joint) for joint in FIGURE_JOINTS]
+        foot_contact_info = foot_info(motions_all)
+
+        data = joints[..., figure_indexes, :2]  # b x T x J x 4 -> acesss only the xy projection from K
         data = data.transpose(0, 2, 3, 1)  # samples x frames x joints x features ==> samples x joints x features x frames
 
     else:
-        data = data[sampled_motions][:, :, :, sampled_frames]
+        data = motions_all.motion[..., ::2, :, :].numpy()
+        data = data.transpose(0, 2, 1, 3)
+        foot_contact_info = None
 
-    # data shape: n_samples x n_joints x n_frames x n_features
-
-    # use only 2 axes, part of the motions, and part of the frames within each motion
-    if entity == 'Joint':
-        data = data[:, :, ::2, :] # use the xz projection
-    else:
-        data = data[:, :, :2, :] # use the xy projection
-
-    data = stretch(data, H, W)
+    data = stretch(data, height, width)
 
     fig, axes = plt.subplots(n_sampled_motions, n_sampled_frames)
     if axes.ndim == 1: # if there is only one motion
@@ -187,7 +179,7 @@ def motion2fig(data, H=512, W=512, n_sampled_motions=5, n_sampled_frames=5, enti
     for motion_idx in np.arange(n_sampled_motions):
         for frame_idx in np.arange(n_sampled_frames):
             skeleton = data[motion_idx,:,:,frame_idx]
-            img = pose2im_all(skeleton, max_h, max_w)
+            img = pose2im_all(skeleton, max_h, max_w, foot_contact_info=foot_contact_info[motion_idx][frame_idx] if foot_contact_info else None)
             axes[motion_idx, frame_idx].axis('off')
             try:
                 axes[motion_idx, frame_idx].imshow(img[::-1,:]) # image y axis is inverted
@@ -196,46 +188,21 @@ def motion2fig(data, H=512, W=512, n_sampled_motions=5, n_sampled_frames=5, enti
     return fig
 
 
-def motion2bvh(motion_data, bvh_file_path, parents=None, type=None, entity='Joint', edge_rot_dict_general=None):
-    assert entity in ['Joint', 'Edge']
-    if entity == 'Joint':
-        motion2bvh_loc(motion_data, bvh_file_path, parents, type)
-    else:
-        motion2bvh_rot(motion_data, bvh_file_path, type=type, edge_rot_dict_general=edge_rot_dict_general)
+def motion2bvh_rot(motions_all: DynamicData, bvh_file_path):
+    for idx, motion_all in enumerate(motions_all):
+        anim, names = motion_all.to_anim()
 
-
-def motion2bvh_rot(motion_data, bvh_file_path, type, edge_rot_dict_general=None):
-
-    if isinstance(motion_data, dict):
-        # input is of type edge_rot_dict (e.g., read from GT file)
-        edge_rot_dicts = [motion_data]
-        frame_mults = [1]
-        is_sub_motion = False
-    else:
-        # input is at the format of an output of the network
-        motion_data = to_list_4D(motion_data)
-        motion_data = un_normalize(motion_data, mean=edge_rot_dict_general['mean'].transpose(0, 2, 1, 3), std=edge_rot_dict_general['std'].transpose(0, 2, 1, 3))
-        edge_rot_dicts, frame_mults, is_sub_motion = edge_rot_dict_from_edge_motion_data(motion_data, type=type,
-                                                                                     edge_rot_dict_general=edge_rot_dict_general)
-
-    # from this point input is a list of edge_rot_dicts
-    for i, (edge_rot_dict, frame_mult) in enumerate(zip(edge_rot_dicts, frame_mults)):
-        anim, names = anim_from_edge_rot_dict(edge_rot_dict, root_name='Hips')
-        if is_sub_motion:
-            suffix = '_{}x{}'.format(edge_rot_dict['rot_edge_no_root'].shape[1]+1, int(edge_rot_dict['rot_edge_no_root'].shape[0]/frame_mult))
-        elif type == 'edit':
-            suffix = '_{:02d}'.format(i)
-        else:
-            suffix = ''
-        bvh_sub_file_path = bvh_file_path.replace('.bvh', suffix + '.bvh')
-        bvh_file_dir = osp.split(bvh_sub_file_path)[0]
+        bvh_file_dir = osp.split(bvh_file_path)[0]
         os.makedirs(bvh_file_dir, exist_ok=True)
-        BVH.save(bvh_sub_file_path, anim, names)
-        if 'contact' in edge_rot_dict and edge_rot_dict['contact'] is not None:
-            np.save(bvh_sub_file_path + '.contact.npy', edge_rot_dict['contact'])
+
+        bvh_file_name = osp.split(bvh_file_path)[1]
+        bvh_file_path_idx = f'{bvh_file_dir}/{idx}_{bvh_file_name}'
+
+        BVH.save(bvh_file_path_idx, anim, names)
 
 
-def motion2bvh_loc(motion_data, bvh_file_path, parents=None, type=None):
+# old function to save figures from Joint model.
+def motion2bvh_loc(motion_data, bvh_file_path, parents, type=None):
     if isinstance(motion_data, list): # saving sub pyramid motions
         bl_full = calc_bone_lengths(motion_data[-1], parents=Joint.parents_list[-1])
         for i, sub_motion in enumerate(motion_data):
@@ -260,17 +227,24 @@ def motion2bvh_loc(motion_data, bvh_file_path, parents=None, type=None):
                 one_motion2bvh(sub_motion, sub_bvh_file_path, parents=parents[i], is_openpose=is_openpose)
             elif type == 'edit':
                 sub_bvh_file_path = bvh_file_path.replace('.bvh', '_'+'{:02d}'.format(i)+'.bvh')
-                motion2bvh(sub_motion, sub_bvh_file_path, parents)
+                motion2bvh_loc(motion_data, bvh_file_path, parents, type)
             else:
                 raise('unsupported type for list manipulation')
     else:
         if motion_data.ndim == 4:
             assert motion_data.shape[0] == 1
             motion_data = motion_data[0]
-        one_motion2bvh(motion_data, bvh_file_path, parents=parents[-1], is_openpose=True)
+        one_motion2bvh(motion_data, bvh_file_path, parents=parents, is_openpose=True)
 
 
-def one_motion2bvh(one_motion_data, bvh_file_path, parents, is_openpose=True, names = None, expand = True):
+def motion_to_bvh(motions_all: DynamicData, motion_path: str, entity: str, parents: []=None):
+    if entity == 'Edge':
+        motion2bvh_rot(motions_all, motion_path)
+    elif entity == 'Joint':
+        motion2bvh_loc(motions_all.motion.numpy().transpose(1, 0, 2), motion_path, parents)
+
+
+def one_motion2bvh(one_motion_data, bvh_file_path, parents, is_openpose=True, names=None, expand=False):
 
     # support non-skel-aware motions with 16 joints
     if one_motion_data.shape[0] == 16:
@@ -280,10 +254,12 @@ def one_motion2bvh(one_motion_data, bvh_file_path, parents, is_openpose=True, na
 
     if expand:
         one_motion_data, parents, names = expand_topology_joints(one_motion_data, is_openpose, parents, names)
-    anim, sorted_order, _ = IK.animation_from_positions(one_motion_data, parents)
+    anim, sorted_order, _ = IK.animation_from_positions(one_motion_data, np.array(parents))
     bvh_file_dir = osp.split(bvh_file_path)[0]
     if not osp.exists(bvh_file_dir):
         os.makedirs(bvh_file_dir)
-    BVH.save(bvh_file_path, anim, names[sorted_order])
 
+    if names:
+        names = names[sorted_order]
 
+    BVH.save(bvh_file_path, anim, names)

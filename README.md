@@ -45,7 +45,9 @@ pip install clearml
 
 We provide a pretrained model for motion synthesis. 
 
-Download the [pretrained model](https://drive.google.com/file/d/1Ezd6fW33B4GjmycKPVO-s0yIBfnqu9T5/view?usp=sharing). 
+
+Download the [pretrained model](https://drive.google.com/file/d/1vGYam0B9LOb7IeWejgA-i2gtGY3loF4D/view?usp=share_link). 
+<!-- Download the [pretrained model](https://drive.google.com/file/d/1Ezd6fW33B4GjmycKPVO-s0yIBfnqu9T5/view?usp=sharing).  -->
 
 Create a folder by the name `data` and place the downloaded model in it.
 
@@ -83,6 +85,10 @@ Following is a training example with the command line arguments that were used f
 ~~~bash
 python train.py --path ./data/edge_rot_data.npy --skeleton --conv3fast --glob_pos --v2_contact_loss --normalize --use_velocity --foot --name <experiment name>
 ~~~
+
+### Training on a new character.
+After downloading a new character dataset, you can add it to the file `utils/config.yaml` with 
+your new character name and the joints you wish to use, and add the flag `--character <your character>` to the train command.
 
 ## Interpolation in Latent Space 
 Here is an example for the creation of 3 pairs of interpolated motions, with 5 motions in each interpolation sequence, to be placed in `<result path>`.

@@ -1,3 +1,5 @@
+import copy
+
 from evaluation.models.stgcn import STGCN
 import re
 import pandas as pd
@@ -9,8 +11,6 @@ import torch
 
 from torch.utils.data import DataLoader
 import numpy as np
-from utils.data import anim_from_edge_rot_dict, un_normalize, edge_rot_dict_from_edge_motion_data, motion_from_raw
-from utils.data import Joint, Edge # to be used in 'eval'
 import sys as _sys
 from evaluation.action2motion.fid import calculate_fid
 from evaluation.action2motion.diversity import calculate_diversity
@@ -20,11 +20,12 @@ from Motion import Animation
 from matplotlib import pyplot as plt
 from generate import get_gen_mot_np, sample
 from utils.pre_run import EvaluateOptions, load_all_form_checkpoint
+from motion_class import StaticData, DynamicData
 
 TEST = False
 
-def generate(args, g_ema, device, mean_joints, std_joints, entity):
 
+def generate(args, g_ema, device, mean_joints, std_joints, entity):
     # arguments required by generation
     args.sample_seeds = None
     args.no_idle = False
@@ -55,30 +56,39 @@ def generate(args, g_ema, device, mean_joints, std_joints, entity):
         index = range(len(generated_motion))
 
     generated_motion_np, _ = get_gen_mot_np(args, generated_motion, mean_joints, std_joints)
-    generated_motions = np.concatenate(generated_motion_np, axis=0)
 
-    if entity.str() == 'Joint':
-        return generated_motions
+    if args.entity == 'Joint':
+        return np.concatenate(generated_motion_np, axis=0)
 
-    _, _, _, edge_rot_dict_general = motion_from_raw(args, np.load(args.path, allow_pickle=True))
-    generated_motions = convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general)
+    motion_data_raw = np.load(args.path, allow_pickle=True)
+    offsets = np.concatenate([motion_data_raw[0]['offset_root'][np.newaxis, :] * 0, motion_data_raw[0]['offsets_no_root']])
+    if args.dataset == 'mixamo':
+        offsets /= 100  # not needed in humanact
+
+    motion_statics = StaticData(parents=motion_data_raw[0]['parents_with_root'],
+                        offsets=offsets,
+                        names=motion_data_raw[0]['names_with_root'],
+                        character_name=args.character,
+                        n_channels=4,
+                        enable_global_position=args.glob_pos,
+                        enable_foot_contact=args.foot,
+                        rotation_representation=args.rotation_repr)
+
+    dynamic_data = torch.stack([torch.from_numpy(motion[0]) for motion in generated_motion_np]).transpose(1, 2)
+    motions_all = DynamicData(dynamic_data, motion_statics, use_velocity=args.use_velocity)
+    motions_all = motions_all.un_normalise(mean_joints.transpose(0, 2, 1, 3), std_joints.transpose(0, 2, 1, 3))
+
+    generated_motions = convert_motions_to_location(motions_all, args.dataset)
+
     return generated_motions
 
 
-def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general):
-    edge_rot_dict_general['std_tensor'] = edge_rot_dict_general['std_tensor'].cpu()
-    edge_rot_dict_general['mean_tensor'] = edge_rot_dict_general['mean_tensor'].cpu()
-    if args.dataset == 'mixamo':
-        edge_rot_dict_general['offsets_no_root'] /= 100 ## not needed in humanact
-
+def convert_motions_to_location(motions_all, dataset_type):
     generated_motions = []
 
-    # get anim for xyz positions
-    motion_data = un_normalize(generated_motion_np, mean=edge_rot_dict_general['mean'].transpose(0, 2, 1, 3), std=edge_rot_dict_general['std'].transpose(0, 2, 1, 3))
-    anim_dicts, frame_mults, is_sub_motion = edge_rot_dict_from_edge_motion_data(motion_data, type='sample', edge_rot_dict_general = edge_rot_dict_general)
+    for j, motion_all in enumerate(motions_all):
+        anim, names = motion_all.to_anim()
 
-    for j, (anim_dict, frame_mult) in enumerate(zip(anim_dicts, frame_mults)):
-        anim, names = anim_from_edge_rot_dict(anim_dict, root_name='Hips')
         # compute global positions using anim
         positions = Animation.positions_global(anim)
 
@@ -86,7 +96,7 @@ def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general
         positions_15joints = positions[:, [7, 6, 15, 16, 17, 10, 11, 12, 0, 23, 24, 25, 19, 20, 21]] # openpose order R then L
         positions_15joints = positions_15joints.transpose(1, 2, 0)
         positions_15joints_oriented = positions_15joints.copy()
-        if args.dataset == 'mixamo':
+        if dataset_type == 'mixamo':
             positions_15joints_oriented = positions_15joints_oriented[:, [0, 2, 1]]
             positions_15joints_oriented[:, 1, :] = -1 * positions_15joints_oriented[:, 1, :]
         generated_motions.append(positions_15joints_oriented)
@@ -94,7 +104,6 @@ def convert_motions_to_location(args, generated_motion_np, edge_rot_dict_general
     generated_motions = np.asarray(generated_motions)
     return generated_motions
 
-#endregion
 
 def calculate_activation_statistics(activations):
     activations = activations.cpu().detach().numpy()
@@ -152,7 +161,7 @@ def main(args_not_parsed):
     args = parser.parse_args(args_not_parsed)
     device = args.device
 
-    g_ema, discriminator, checkpoint, entity, mean_joints, std_joints = load_all_form_checkpoint(args.ckpt, args)
+    g_ema, _, _, _, mean_joints, std_joints, entity, args = load_all_form_checkpoint(args.ckpt, args)
 
     if not (getattr(args, 'test_model', None) ^ getattr(args, 'test_actor', None)):
         setattr(args, 'test_model', True)
@@ -169,7 +178,7 @@ def main(args_not_parsed):
 
     if args.test_model:
         # generate motions
-        generated_motions = generate(args, g_ema, device, mean_joints, std_joints, entity=entity)
+        generated_motions = generate(args, g_ema, device, mean_joints, std_joints, entity)
         generated_motions = generated_motions[:, :15]
 
     elif args.test_actor:
@@ -234,6 +243,7 @@ def main(args_not_parsed):
     fig_hist_dataset = plt.figure()
     plt.bar(*np.unique(yhat.cpu(), return_counts=True))
     plt.title('dataset')
+    plt.savefig('dataset_bar_plot.png')
     try:
         plt.show()
     except:

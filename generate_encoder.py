@@ -3,6 +3,7 @@ import os.path as osp
 import sys
 import datetime
 import pandas as pd
+import torch
 
 from models.encoder_mask import ConditionalMask, ReconLoss, PositionLoss, PositionLossRoot
 import functools
@@ -12,22 +13,21 @@ from torch.utils import data
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
-from utils.visualization import motion2bvh
+from utils.visualization import motion2bvh_rot
 from utils.traits import *
-from utils.data import to_list_4D, un_normalize
 
 from models.gan import Generator, Discriminator
-from utils.data import Joint, Edge, requires_grad, data_sampler  # used by eval
+from utils.data import requires_grad, data_sampler
 from evaluate import initialize_model
 from utils.pre_run import TestEncoderOptions, load_all_form_checkpoint
 from utils.interactive_utils import blend
 
 from Motion.Quaternions import Quaternions
+from motion_class import StaticData, DynamicData
 
 def inject_with_latent(rec_latent, g_ema, inject_idx=6):
     noise = torch.randn_like(rec_latent)
     latent = g_ema.get_latent(noise)
-    # latents = [[rec_latent[i], latent[i]] for i in range(img.shape[0])]
     latents = torch.cat((rec_latent[:, :inject_idx], latent[:, inject_idx:]), dim=1)
     return latents
 
@@ -39,7 +39,6 @@ def eval_input(img, encoder, g_ema, device, mask_make=None, n_frames=None, mixed
     if not isinstance(img, torch.Tensor):
         img = torch.from_numpy(img)
     img = img.float().to(device)
-    img = img.transpose(1, 2)
     img = mask_make(img, cond_length=n_frames)
     _, rec_latent = encoder(img)
 
@@ -55,13 +54,15 @@ def eval_input(img, encoder, g_ema, device, mask_make=None, n_frames=None, mixed
     return rec_img, img
 
 
-def test_encoder(args, loader, encoder, g_ema, device, edge_rot_dict_general, make_mask,
-                 mean_latent, discriminator=None):
+def test_encoder(args, loader, encoder, g_ema, device, motion_statics : StaticData, make_mask,
+                 mean_latent, mean_joints, std_joints, discriminator=None):
     l1_loss = ReconLoss('L1')
     l2_loss = ReconLoss('L2')
-    pos_loss = PositionLoss(edge_rot_dict_general, device, True, args.foot)
-    pos_loss_local = PositionLoss(edge_rot_dict_general, device, True, args.foot, local_frame=True)
-    pos_loss_root = PositionLossRoot(edge_rot_dict_general, device, True, args.foot)
+
+    pos_loss = PositionLoss(motion_statics , True, args.foot, args.use_velocity, mean_joints, std_joints)
+    pos_loss_local = PositionLoss(motion_statics , True, args.foot,
+                                  args.use_velocity, mean_joints, std_joints, local_frame=True)
+    pos_loss_root = PositionLossRoot(motion_statics , device, True, args.foot, args.use_velocity, mean_joints, std_joints)
     stgcn_model = initialize_model(device, args.action_recog_model, args.dataset)
 
     pbar = tqdm(enumerate(loader), initial=args.start_iter, dynamic_ncols=False, smoothing=0.01, ncols=150, total=len(loader))
@@ -127,11 +128,9 @@ def main(args_not_parsed):
 
     args.n_mlp = 8 # num linear layers in the generator's mapping network (z to W)
 
-    entity = eval(args.entity)
-
-    g_ema, discriminator, motion_data, mean_latent, edge_rot_dict_general = load_all_form_checkpoint(args.ckpt_existing, test_args, return_motion_data=True, return_edge_rot_dict_general=True)
-
-    encoder = Discriminator(traits_class=traits_class, entity=entity,
+    g_ema, discriminator, motion_data, mean_latent, motion_statics , normalisation_data, args = load_all_form_checkpoint(args.ckpt_existing, test_args, return_motion_data=True)
+    
+    encoder = Discriminator(traits_class=traits_class, motion_statics =motion_statics ,
                             latent_dim=args.latent,
                             latent_rec_idx=int(args.encoder_latent_rec_idx), n_latent_predict=args.n_latent_predict,
                             ).to(device)
@@ -141,12 +140,17 @@ def main(args_not_parsed):
 
     make_mask = ConditionalMask(args, n_frames=args.n_frames,
                                 keep_loc=args.keep_loc, keep_rot=args.keep_rot,
-                                edge_rot_dict_general=edge_rot_dict_general)
+                                normalisation_data=normalisation_data)
 
-    type2func = {'inversion': inversion, 'fusion': motion_fusion, 'editing': manual_editing ,
-                 'editing_seed': manual_editing_seed, 'denoising': denoising, 'auto_regressive': auto_regressive }
-    type2func[test_args.application](args, device, edge_rot_dict_general, encoder, eval_ids, g_ema, motion_data,
-                                     output_path_anim, test_args, make_mask)
+    mean_joints = torch.from_numpy(normalisation_data['mean']).to(device)
+    std_joints = torch.from_numpy(normalisation_data['std']).to(device)
+
+    type2func = {'inversion': inversion, 'fusion': motion_fusion, 'editing': manual_editing,
+                 'editing_seed': manual_editing_seed, 'denoising': denoising, 'auto_regressive': auto_regressive}
+
+    type2func[test_args.application](encoder, motion_statics , mean_joints, std_joints, g_ema, output_path_anim, make_mask,
+                                     eval_ids=eval_ids, motion_data=motion_data.transpose(0, 2, 1, 3), use_velocity=args.use_velocity,
+                                     device=device, args=args, test_args=test_args)
     if test_args.full_eval:
         np.random.seed(0)
         np.random.shuffle(motion_data)
@@ -161,8 +165,8 @@ def main(args_not_parsed):
             drop_last=True,
         )
 
-        loss_dict = test_encoder(args, loader, encoder, g_ema, device, edge_rot_dict_general, make_mask,
-                                 mean_latent, discriminator)
+        loss_dict = test_encoder(args, loader, encoder, g_ema, device, motion_statics , make_mask,
+                                 mean_latent, discriminator, mean_joints, std_joints)
         time_str = datetime.datetime.now().strftime('%y_%m_%d_%H_%M')
         output_path_losses = osp.join(output_path, f'losses')
         os.makedirs(output_path_losses, exist_ok=True)
@@ -183,7 +187,6 @@ def auto_regressive_exec(img, encoder, g_ema, device, make_mask, n_frames):
         if not isinstance(img, torch.Tensor):
             img = torch.from_numpy(img)
         img = img.float().to(device)
-        img = img.transpose(1, 2)
 
         make_mask.n_frames = 32
 
@@ -206,37 +209,48 @@ def auto_regressive_exec(img, encoder, g_ema, device, make_mask, n_frames):
         return final_res
 
 
-def auto_regressive(args, device, edge_rot_dict_general, encoder, eval_ids, g_ema, motion_data, output_path_anim, test_args, make_mask):
+def auto_regressive(encoder, motion_statics : StaticData, mean_joints: torch.Tensor, std_joints: torch.Tensor,
+                    g_ema, output_path_anim, make_mask, use_velocity, device, args, test_args, **kwargs):
     output_path_anim_id = osp.join(output_path_anim, 'auto_regressive')
     os.makedirs(output_path_anim_id, exist_ok=True)
-    save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
+
     noise = torch.randn(args.batch, args.latent, device=device)
     with torch.no_grad():
         start_img, _, _ = g_ema([noise], input_is_latent=False, return_latents=False)
-        start_img = start_img.permute(0, 2, 1, 3)
         pass
     res = auto_regressive_exec(start_img, encoder, g_ema, device, make_mask, test_args.n_frames_autoregressive)
-    save_bvh(res.permute(0, 2, 1, 3).detach().cpu().numpy(), osp.join(output_path_anim_id, 'auto_regressive.bvh'))
-    save_bvh(start_img.detach().cpu().numpy(), osp.join(output_path_anim_id, 'auto_regressive_start.bvh'))
+
+    out_motions_all = DynamicData(res.detach(), motion_statics , use_velocity=use_velocity)
+    out_motions_all = out_motions_all.un_normalise(mean_joints, std_joints)
+
+    input_motions_all = DynamicData(start_img, motion_statics , use_velocity=use_velocity)
+    input_motions_all = input_motions_all.un_normalise(mean_joints, std_joints)
+
+    motion2bvh_rot(out_motions_all, osp.join(output_path_anim_id, 'auto_regressive.bvh'))
+    motion2bvh_rot(input_motions_all, osp.join(output_path_anim_id, 'auto_regressive_start.bvh'))
 
 
-
-def inversion(args, device, edge_rot_dict_general, encoder, eval_ids, g_ema, motion_data, output_path_anim, test_args, make_mask):
+def inversion(encoder, motion_statics : StaticData, mean_joints: torch.Tensor, std_joints: torch.Tensor,
+              g_ema, output_path_anim, make_mask, eval_ids, motion_data, use_velocity, device, **kwargs):
     output_path_anim_id = osp.join(output_path_anim, 'inversion')
     os.makedirs(output_path_anim_id, exist_ok=True)
     for eval_id in tqdm(eval_ids):
         motion_data_eval = torch.from_numpy(motion_data[[eval_id]]).float().to(device)
 
-        save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
-
         output = eval_input(motion_data_eval, encoder, g_ema, device, make_mask)[0]
-        save_bvh(output.permute(0, 2, 1, 3).detach().cpu().numpy(),
-                 osp.join(output_path_anim_id, '{}_{}.bvh').format(eval_id, 'inversion'))
-        save_bvh(motion_data_eval.detach().cpu().numpy(), osp.join(output_path_anim_id, '{}_gt.bvh').format(eval_id))
+
+        out_motions_all = DynamicData(output.detach(), motion_statics , use_velocity=use_velocity)
+        out_motions_all = out_motions_all.un_normalise(mean_joints, std_joints)
+
+        input_motions_all = DynamicData(motion_data_eval, motion_statics , use_velocity=use_velocity)
+        input_motions_all = input_motions_all.un_normalise(mean_joints, std_joints)
+
+        motion2bvh_rot(out_motions_all, osp.join(output_path_anim_id, f'{eval_id}_inversion.bvh'))
+        motion2bvh_rot(input_motions_all, osp.join(output_path_anim_id, f'{eval_id}_gt.bvh'))
 
 
-def motion_fusion(args, device, edge_rot_dict_general, encoder, eval_ids, g_ema, motion_data, output_path_anim,
-                   test_args, make_mask):
+def motion_fusion(encoder, motion_statics : StaticData, mean_joints: torch.Tensor, std_joints: torch.Tensor,
+              g_ema, output_path_anim, make_mask, eval_ids, motion_data, use_velocity, device, **kwargs):
     output_path_anim_id = osp.join(output_path_anim, f'motion_fusion')
     os.makedirs(output_path_anim_id, exist_ok=True)
     frame_idx = 40
@@ -246,79 +260,78 @@ def motion_fusion(args, device, edge_rot_dict_general, encoder, eval_ids, g_ema,
     motion_data_eval = motion_data_first.clone()
     motion_data_eval[..., frame_idx:] = motion_data_second[...,frame_idx:]
 
-    save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
     output = eval_input(motion_data_eval, encoder, g_ema, device, make_mask)[0]
 
-    save_bvh(output.permute(0, 2, 1, 3).detach().cpu().numpy(),
-             osp.join(output_path_anim_id, '{}_{}.bvh').format(f'{eval_ids[0]}_{eval_ids[1]}', 'fusion'))
-    save_bvh(motion_data_eval.detach().cpu().numpy(),
-             osp.join(output_path_anim_id, '{}_transition_gt.bvh').format(f'{eval_ids[0]}_{eval_ids[1]}'))
+    out_motions_all = DynamicData(output.detach(), motion_statics , use_velocity=use_velocity)
+    out_motions_all = out_motions_all.un_normalise(mean_joints, std_joints)
+
+    input_motions_all = DynamicData(motion_data_eval, motion_statics , use_velocity=use_velocity)
+    input_motions_all = input_motions_all.un_normalise(mean_joints, std_joints)
+
+    motion2bvh_rot(out_motions_all, osp.join(output_path_anim_id, f'{eval_ids[0]}_{eval_ids[1]}_fusion.bvh'))
+    motion2bvh_rot(input_motions_all, osp.join(output_path_anim_id, f'{eval_ids[0]}_{eval_ids[1]}_transition_gt.bvh'))
 
 
-def manual_editing(args, device, edge_rot_dict_general, encoder, eval_ids, g_ema, motion_data, output_path_anim,
-                   test_args, make_mask):
+def manual_editing(encoder, motion_statics : StaticData, mean_joints: torch.Tensor, std_joints: torch.Tensor,
+                    g_ema, output_path_anim, make_mask, eval_ids, motion_data, use_velocity, device, **kwargs):
     output_path_anim_id = osp.join(output_path_anim, f'spatial_editing')
     os.makedirs(output_path_anim_id, exist_ok=True)
     for eval_id in tqdm(eval_ids):
         motion_data_eval = torch.from_numpy(motion_data[[eval_id]]).float().to(device)
-        save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
         joint_idx = 12
         order ='xyz'
         for axis in [1]:
-            motion_data_edit = to_list_4D(motion_data_eval.detach().cpu().numpy())
-            motion_data_edit = un_normalize(motion_data_edit, mean=edge_rot_dict_general['mean'].transpose(0, 2, 1, 3),
-                                       std=edge_rot_dict_general['std'].transpose(0, 2, 1, 3))
+            motion_data_edit = (motion_data_eval * std_joints + mean_joints)
 
-            motion_data_edit = motion_data_edit[0]
-            for idx in range(motion_data_edit[0,joint_idx,:,:].shape[1]):
+            for idx in range(motion_data_edit[0,:, joint_idx,:].shape[1]):
                 if idx>32:
-                    quat_abs = abs(Quaternions(motion_data_edit[0,joint_idx,:,idx]))
+                    quat_abs = abs(Quaternions(motion_data_edit[0,:, joint_idx,idx].cpu().numpy()))
                     angle_rad_xyz = quat_abs.euler(order=order)
                     angle_deg = np.rad2deg(angle_rad_xyz)
                     angle_deg[0][axis] += 110
                     angle_rad = np.deg2rad(angle_deg)
                     n_quat = torch.tensor(np.asarray(Quaternions.from_euler(angle_rad, order=order, world=True)))
-                    motion_data_edit[0,joint_idx,:,:][:,idx] = n_quat
+                    motion_data_edit[0,:, joint_idx,:][:,idx] = n_quat
 
             # normalize again
-            mean = edge_rot_dict_general['mean'].transpose(0, 2, 1, 3)
-            std = edge_rot_dict_general['std'].transpose(0, 2, 1, 3)
-            motion_data_edit = (motion_data_edit - mean) / std
+            motion_data_edit = (motion_data_edit - mean_joints) / std_joints
 
             output = eval_input(motion_data_edit, encoder, g_ema, device, make_mask)[0]
-            save_bvh(output.permute(0, 2, 1, 3).detach().cpu().numpy(),
-                     osp.join(output_path_anim_id, '{}_{}.bvh').format(f'{eval_id}', 'result'))
-            save_bvh(motion_data_edit,
-                     osp.join(output_path_anim_id, '{}_gt_edited.bvh').format(eval_id))
-            save_bvh(motion_data_eval.detach().cpu().numpy(),
-                     osp.join(output_path_anim_id, '{}_gt.bvh').format(eval_id))
+
+            out_motions_all = DynamicData(output.detach(), motion_statics , use_velocity=use_velocity)
+            out_motions_all = out_motions_all.un_normalise(mean_joints, std_joints)
+
+            edit_motions_all = DynamicData(motion_data_edit, motion_statics , use_velocity=use_velocity)
+            edit_motions_all = edit_motions_all.un_normalise(mean_joints, std_joints)
+
+            input_motions_all = DynamicData(motion_data_eval, motion_statics , use_velocity=use_velocity)
+            input_motions_all = input_motions_all.un_normalise(mean_joints, std_joints)
+
+            motion2bvh_rot(out_motions_all, osp.join(output_path_anim_id, f'{eval_id}_result.bvh'))
+            motion2bvh_rot(edit_motions_all, osp.join(output_path_anim_id, f'{eval_id}__gt_edited.bvh'))
+            motion2bvh_rot(input_motions_all, osp.join(output_path_anim_id, f'{eval_id}__gt.bvh'))
 
 
-def manual_editing_seed(args, device, edge_rot_dict_general, encoder, seeds, g_ema, motion_data, output_path_anim,
-                   test_args, make_mask):
+def manual_editing_seed(encoder, motion_statics : StaticData, mean_joints: torch.Tensor, std_joints: torch.Tensor,
+                        g_ema, output_path_anim, make_mask, eval_ids, use_velocity, device, args, **kwargs):
     output_path_anim_id = osp.join(output_path_anim, f'spatial_editing_seed')
     os.makedirs(output_path_anim_id, exist_ok=True)
     joint_idx = 12
     frame_to_edit_from = 32
-    for seed in tqdm(seeds):
+    for seed in tqdm(eval_ids):
         rnd_generator = torch.Generator(device=device).manual_seed(int(seed))
         sample_z = torch.randn(1, args.latent, device=device, generator=rnd_generator)
         motion_data_eval, W, _ = g_ema(
             [sample_z], truncation_latent=g_ema.mean_latent(args.truncation_mean),
             return_sub_motions=False, return_latents=True)
-        motion_data_eval = motion_data_eval.transpose(2,1)
 
-        save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
         order = 'xyz'
         for axis in [1]:
-            motion_data_edit = to_list_4D(motion_data_eval.detach().cpu().numpy())
-            motion_data_edit = un_normalize(motion_data_edit, mean=edge_rot_dict_general['mean'].transpose(0, 2, 1, 3),
-                                        std=edge_rot_dict_general['std'].transpose(0, 2, 1, 3))
-            motion_data_edit = motion_data_edit[0]
-            for idx in range(motion_data_edit[0,joint_idx,:,:].shape[1]):
+            motion_data_edit = (motion_data_eval * std_joints + mean_joints)
+
+            for idx in range(motion_data_edit[0,:, joint_idx,:].shape[1]):
                 if idx>frame_to_edit_from:
-                    quat_abs = abs(Quaternions(motion_data_edit[0,joint_idx,:,idx]))
-                    # quat_abs = Quaternions(motion_data_eval[0,joint_idx,:,:][:,idx].detach().cpu().numpy())
+                    quat_abs = abs(Quaternions(motion_data_edit[0,:, joint_idx,idx].detach().cpu().numpy()))
                     angle_rad_xyz = quat_abs.euler(order=order)
                     angle_deg = np.rad2deg(angle_rad_xyz)
                     angle_deg[0][axis] += 120
@@ -326,44 +339,55 @@ def manual_editing_seed(args, device, edge_rot_dict_general, encoder, seeds, g_e
 
                     angle_rad = np.deg2rad(angle_deg)
                     n_quat = torch.tensor(np.asarray(Quaternions.from_euler(angle_rad, order=order, world=True)))
-                    motion_data_edit[0,joint_idx,:,:][:,idx] = n_quat
+                    motion_data_edit[0,:, joint_idx,:][:,idx] = n_quat
 
-            mean = edge_rot_dict_general['mean'].transpose(0, 2, 1, 3)
-            std = edge_rot_dict_general['std'].transpose(0, 2, 1, 3)
-            motion_data_edit = (motion_data_edit - mean) / std
-
+            motion_data_edit = (motion_data_edit - mean_joints) / std_joints
+        
         output = eval_input(motion_data_edit, encoder, g_ema, device, make_mask)[0]
-        save_bvh(output.permute(0, 2, 1, 3).detach().cpu().numpy(),
-                 osp.join(output_path_anim_id, '{}_{}.bvh').format(f'{seed}', 'result'))
-        save_bvh(motion_data_edit,
-                 osp.join(output_path_anim_id, '{}_gt_edited.bvh').format(seed))
-        save_bvh(motion_data_eval.detach().cpu().numpy(),
-                 osp.join(output_path_anim_id, '{}_gt.bvh').format(seed))
+
+        out_motions_all = DynamicData(output, motion_statics , use_velocity=use_velocity)
+        out_motions_all = out_motions_all.un_normalise(mean_joints, std_joints)
+
+        edit_motions_all = DynamicData(motion_data_edit, motion_statics , use_velocity=use_velocity)
+        edit_motions_all = edit_motions_all.un_normalise(mean_joints, std_joints)
+
+        input_motions_all = DynamicData(motion_data_eval, motion_statics , use_velocity=use_velocity)
+        input_motions_all = input_motions_all.un_normalise(mean_joints, std_joints)
+
+        motion2bvh_rot(out_motions_all, osp.join(output_path_anim_id, f'{seed}_result.bvh'))
+        motion2bvh_rot(edit_motions_all, osp.join(output_path_anim_id, f'{seed}__gt_edited.bvh'))
+        motion2bvh_rot(input_motions_all, osp.join(output_path_anim_id, f'{seed}__gt.bvh'))
 
 
-def denoising(args, device, edge_rot_dict_general, encoder, eval_ids, g_ema, motion_data, output_path_anim,
-                   test_args, make_mask):
+def denoising(encoder, motion_statics : StaticData, mean_joints: torch.Tensor, std_joints: torch.Tensor,
+              g_ema, output_path_anim, make_mask, eval_ids, motion_data, use_velocity, device, **kwargs):
     output_path_anim_id = osp.join(output_path_anim, f'denoising')
     np.random.seed(0)
     torch.manual_seed(0)
 
     for eval_id in tqdm(eval_ids):
         motion_data_eval = torch.from_numpy(motion_data[[eval_id]]).float().to(device)
-        save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
 
         noise_mean = 0
         noise_std = 0.1
 
-        save_bvh(motion_data_eval.detach().cpu().numpy(),
-                 osp.join(output_path_anim_id, f'{eval_id:04d}_gt.bvh'))
-        motion_data_eval += torch.randn(motion_data_eval.size()).cuda() * noise_std + noise_mean
+        noise = torch.randn(motion_data_eval.size()).cuda() * noise_std + noise_mean
+        motion_data_noisy = motion_data_eval.clone() + noise
 
-        output = eval_input(motion_data_eval, encoder, g_ema, device, make_mask)[0]
-        save_bvh(output.permute(0, 2, 1, 3).detach().cpu().numpy(),
-                 osp.join(output_path_anim_id, f'{eval_id:04d}_denoise.bvh'))
-        save_bvh(motion_data_eval.detach().cpu().numpy(),
-                 osp.join(output_path_anim_id, f'{eval_id:04d}_noisy.bvh'))
-        print("saved to ", output_path_anim_id)
+        output = eval_input(motion_data_noisy, encoder, g_ema, device, make_mask)[0]
+
+        out_motions_all = DynamicData(output.detach(), motion_statics , use_velocity=use_velocity)
+        out_motions_all = out_motions_all.un_normalise(mean_joints, std_joints)
+
+        input_motions_all = DynamicData(motion_data_eval, motion_statics, use_velocity=use_velocity)
+        input_motions_all = input_motions_all.un_normalise(mean_joints, std_joints)
+
+        noisy_motions_all = DynamicData(motion_data_eval, motion_statics, use_velocity=use_velocity)
+        noisy_motions_all = noisy_motions_all.un_normalise(mean_joints, std_joints)
+
+        motion2bvh_rot(out_motions_all, osp.join(output_path_anim_id, f'{eval_id:04d}_denoise.bvh'))
+        motion2bvh_rot(input_motions_all, osp.join(output_path_anim_id, f'{eval_id:04d}_gt.bvh'))
+        motion2bvh_rot(noisy_motions_all, osp.join(output_path_anim_id, f'{eval_id:04d}_noisy.bvh'))
 
 
 if __name__ == "__main__":
