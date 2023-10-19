@@ -2,8 +2,11 @@ import argparse
 import re
 import numpy as np
 import torch
+
 from models.gan import Generator, Discriminator
-from utils.data import Edge, Joint, motion_from_raw
+from utils.data import Joint, motion_from_raw
+from motion_class import StaticData
+
 
 # region Parser Options
 class BaseOptions:
@@ -40,8 +43,8 @@ class TrainBaseOptions(BaseOptions):
         parser.add_argument("--augment_p", type=float, default=0,
                             help="probability of applying augmentation. 0 = use adaptive augmentation")
         parser.add_argument("--action_recog_model", type=str,
-                            default='evaluation/checkpoint_0300_mixamo_acc_0.74_train_test_split_smaller_arch.tar',
                             help="pretrained action recognition model used for feature extraction when computing evaluation metrics FID, KID, diversity")
+        parser.add_argument("--character", type=str, default='jasper', help='name of the character on the dataset')
         parser.add_argument("--ckpt", type=str, default=None, help="path to the checkpoints to resume training",)
 
 
@@ -155,6 +158,7 @@ class TestBaseOptions(BaseOptions):
                             help="number of vectors to calculate mean for the truncation",)
         parser.add_argument("--ckpt",type=str,help="path to the model checkpoint",)
         parser.add_argument("--simple_idx", type=int, default=0, help="use simple idx for output bvh files")
+        parser.add_argument("--character", type=str, default='jasper', help='name of the character on the dataset')
         self.parser = parser
 
 def _parse_list_nums(s):
@@ -215,6 +219,7 @@ class GenerateOptions(TestBaseOptions):
         parser.add_argument('--boundary_path', type=str, help='Path to boundary file')
         parser.add_argument('--edit_radius', type=float,
                             help='Editing radius (i.e., max change of W in editing direction)')
+
 
 class EvaluateOptions(TestBaseOptions):
     def __init__(self):
@@ -296,17 +301,6 @@ def _parse_interp_seeds(s):
 
 
 def setup_env(args, get_traits=False):
-    if args.glob_pos:
-        # add global position adjacency nodes to neighbouring lists
-        # this method must be called BEFORE the Generator and the Discriminator are initialized
-        Edge.enable_global_position()
-
-    if 'Edge' in args.entity and args.rotation_repr == 'repr6d':
-        Edge.enable_repr6d()
-
-    if args.foot:
-        Edge.enable_foot_contact()
-        args.axis_up = 1
 
     if get_traits:
         from utils.traits import SkeletonAwarePoolTraits, SkeletonAwareConv3DTraits,\
@@ -329,7 +323,7 @@ def setup_env(args, get_traits=False):
         return traits_class
 
 
-def load_all_form_checkpoint(ckpt_path, args, return_motion_data=False, empty_disc=False, return_edge_rot_dict_general=False):
+def load_all_form_checkpoint(ckpt_path, args, return_motion_data=False):
     """Load everything from the path"""
 
     checkpoint = torch.load(ckpt_path)
@@ -338,15 +332,26 @@ def load_all_form_checkpoint(ckpt_path, args, return_motion_data=False, empty_di
 
     traits_class = setup_env(args, get_traits=True)
 
-    entity = eval(args.entity)
+    motion_data_raw = np.load(args.path, allow_pickle=True)
+
+    if args.entity == 'Edge':
+        motion_statics = StaticData.init_from_motion(motion_data_raw[0], character_name=args.character,
+                                             n_channels=4,
+                                             enable_global_position=args.glob_pos,
+                                             enable_foot_contact=args.foot,
+                                             rotation_representation=args.rotation_repr)
+
+    elif args.entity == 'Joint':
+        motion_statics = StaticData.init_joint_static(Joint(), character_name=args.character)
+
 
     g_ema = Generator(
-        args.latent, args.n_mlp, traits_class=traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
+        args.latent, args.n_mlp, traits_class=traits_class, motion_statics=motion_statics, n_inplace_conv=args.n_inplace_conv
     ).to(args.device)
 
     g_ema.load_state_dict(checkpoint["g_ema"])
 
-    discriminator = Discriminator(traits_class=traits_class, entity=entity, n_inplace_conv=args.n_inplace_conv
+    discriminator = Discriminator(traits_class=traits_class, motion_statics=motion_statics, n_inplace_conv=args.n_inplace_conv
                                   ).to(args.device)
 
     discriminator.load_state_dict(checkpoint["d"])
@@ -354,13 +359,11 @@ def load_all_form_checkpoint(ckpt_path, args, return_motion_data=False, empty_di
     mean_joints = checkpoint['mean_joints']
     std_joints = checkpoint['std_joints']
 
-
     if return_motion_data:
         motion_data_raw = np.load(args.path, allow_pickle=True)
-        motion_data, mean_joints, std_joints, edge_rot_dict_general = motion_from_raw(args, motion_data_raw)
-
+        motion_data, normalisation_data = motion_from_raw(args, motion_data_raw, motion_statics)
         mean_latent = g_ema.mean_latent(args.truncation_mean)
 
-        return g_ema, discriminator, motion_data, mean_latent, edge_rot_dict_general
+        return g_ema, discriminator, motion_data, mean_latent, motion_statics, normalisation_data, args
 
-    return g_ema, discriminator, checkpoint, entity, mean_joints, std_joints
+    return g_ema, discriminator, checkpoint, motion_statics, mean_joints, std_joints, args.entity, args

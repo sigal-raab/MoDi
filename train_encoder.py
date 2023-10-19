@@ -1,27 +1,21 @@
 import os
 import os.path as osp
 import sys
-
 import random
 
-from models.encoder_mask import ConditionalMask, ReconLoss, PositionLoss, ContactLabelLoss, GlobalPosLoss
 from torch import optim
 from torch.utils import data
 import torch.distributed as dist
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
-import functools
 
+from models.encoder_mask import ConditionalMask, ReconLoss, PositionLoss, ContactLabelLoss, GlobalPosLoss
 from models.inverse_losses import DiscriminatorLoss, LatentCenterRegularizer, FootContactUnsupervisedLoss
-
-from utils.visualization import motion2bvh
+from utils.visualization import motion2bvh_rot
 from utils.data import calc_bone_lengths, sample_data, requires_grad, data_sampler
 from utils.traits import *
-
-from models.gan import Generator, Discriminator
-
-from utils.data import Joint, Edge # to be used in 'eval'
-from evaluate import initialize_model
+from models.gan import Discriminator
+from motion_class import DynamicData
 
 from utils.distributed import (
     get_rank,
@@ -41,15 +35,15 @@ except ImportError:
 from utils.pre_run import TrainEncoderOptions, load_all_form_checkpoint
 
 
-
-def train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, edge_rot_dict_general, logger, make_mask,
-              discriminator, latent_center):
+def train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, motion_statics, logger, make_mask,
+              discriminator, latent_center, normalisation_data):
     loader = sample_data(loader)
     recon_criteria = ReconLoss(args.loss_type)
-    pos_loss_local = PositionLoss(edge_rot_dict_general, device, True, args.foot, local_frame=args.use_local_pos)
+    pos_loss_local = PositionLoss(motion_statics, True, args.foot, args.use_velocity,
+                                   normalisation_data['mean'], normalisation_data['std'], local_frame=args.use_local_pos)
     contact_criteria = ContactLabelLoss()
     global_pos_criteria = GlobalPosLoss(args)
-    foot_contact_criteria = FootContactUnsupervisedLoss(args, edge_rot_dict_general)
+    foot_contact_criteria = FootContactUnsupervisedLoss(motion_statics, normalisation_data, args.glob_pos, args.use_velocity)
     discriminator_criteria = DiscriminatorLoss(args, discriminator)
     latent_center_criteria = LatentCenterRegularizer(args, latent_center)
     pbar = range(args.iter)
@@ -228,9 +222,10 @@ def train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, edge_rot_d
                     logger.report_scalar("Losses", loss_name, iteration=i, value=loss_dict[loss_name])
 
             if (i + 1) % args.report_every == 0:
-                save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
-                save_bvh(rec_img.permute(0, 2, 1, 3).detach().cpu().numpy(),
-                         osp.join(args.model_save_path, f"bvhs/{i + 1:05d}.bvh"))
+                motion_all = DynamicData(rec_img.permute(0, 2, 1, 3).detach().cpu().numpy(), motion_statics ,
+                                             use_velocity=args.use_velocity)
+                motion2bvh_rot(motion_all,
+                               osp.join(args.model_save_path, f"bvhs/{i + 1:05d}.bvh"))
             if i == 0 or (i+1) % args.report_every == 0:
                 torch.save(
                     {
@@ -283,9 +278,7 @@ def main(args_not_parsed):
     args = parser.parse_args(args_not_parsed)
     device = args.device
 
-    g_ema, discriminator, motion_data, mean_latent,\
-    edge_rot_dict_general = load_all_form_checkpoint(args.ckpt_existing, args, return_motion_data=True,
-                                                                                                     empty_disc=args.empty_disc, )
+    g_ema, discriminator, motion_data, mean_latent, motion_statics , normalisation_data, args = load_all_form_checkpoint(args.ckpt_existing, args, return_motion_data=True)
     if args.overfitting:
         motion_data = motion_data[:args.overfitting]
 
@@ -307,9 +300,7 @@ def main(args_not_parsed):
 
     args.start_iter = 0
 
-    entity = eval(args.entity)
-
-    encoder = Discriminator(traits_class=traits_class, entity=entity,
+    encoder = Discriminator(traits_class=traits_class, motion_statics =motion_statics ,
                             latent_dim=args.latent,
                             latent_rec_idx=int(args.encoder_latent_rec_idx), n_latent_predict=args.n_latent_predict,
                             ).to(device)
@@ -346,10 +337,10 @@ def main(args_not_parsed):
         e_optim.load_state_dict(ckpt["e_optim"])
 
     gt_bone_lengths = calc_bone_lengths(motion_data) if args.entity == 'Joint' else None
+    motion_all = DynamicData(torch.from_numpy(motion_data[0]).transpose(0, 1), motion_statics , use_velocity=args.use_velocity)
 
     motion_path = osp.join(animations_output_folder, 'real_motion.bvh')
-    motion2bvh(motion_data[0], motion_path, parents=entity.parents_list, entity=args.entity,
-               edge_rot_dict_general=edge_rot_dict_general)
+    motion2bvh_rot(motion_all, motion_path)
 
     if args.clearml:
         logger.report_media(title='Animation', series='Ground Truth Motion', iteration=0, local_path=motion_path)
@@ -364,10 +355,13 @@ def main(args_not_parsed):
     )
 
     make_mask = ConditionalMask(args, n_frames=args.n_frames, keep_loc=args.keep_loc, keep_rot=args.keep_rot,
-                                edge_rot_dict_general=edge_rot_dict_general, noise_level=args.noise_level)
-
-    train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, edge_rot_dict_general, logger, make_mask,
-              discriminator, mean_latent)
+                                normalisation_data=normalisation_data, noise_level=args.noise_level)
+    
+    normalisation_data = {'mean': torch.from_numpy(normalisation_data['mean']).to(device),
+                          'std': torch.from_numpy(normalisation_data['std']).to(device)}
+    
+    train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, motion_statics , logger, make_mask,
+              discriminator, mean_latent, normalisation_data)
 
 
 if __name__ == "__main__":

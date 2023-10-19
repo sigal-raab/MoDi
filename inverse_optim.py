@@ -5,14 +5,13 @@ from tqdm import tqdm
 import torch
 import sys
 
-from utils.visualization import motion2bvh
-from utils.data import Joint, Edge # used by the 'eval' command
+from utils.visualization import motion2bvh_rot
 from utils.pre_run import OptimOptions, load_all_form_checkpoint
 
 
-def inverse_optim(args, g_ema, discriminator, device, mean_latent, target_motion, edge_rot_dict_general):
+def inverse_optim(args, g_ema, discriminator, device, mean_latent, target_motion, motion_statics, normalisation_data):
     from models.inverse_losses import DiscriminatorLoss, LatentCenterRegularizer, PositionLoss
-    pos_loss_local = PositionLoss(edge_rot_dict_general, device, True, args.foot, local_frame=args.use_local_pos)
+    pos_loss_local = PositionLoss(motion_statics, normalisation_data, device, True, args.foot, args.use_velocity, local_frame=args.use_local_pos)
 
     target_motion = torch.tensor(target_motion, device=device, dtype=torch.float32)
     target_motion = target_motion.permute(0, 2, 1, 3)
@@ -38,7 +37,7 @@ def inverse_optim(args, g_ema, discriminator, device, mean_latent, target_motion
     optim = torch.optim.Adam([target_W], lr=args.lr)
 
     os.makedirs(args.out_path, exist_ok=True)
-    save_bvh = functools.partial(motion2bvh, edge_rot_dict_general=edge_rot_dict_general, entity='Edge')
+    save_bvh = functools.partial(motion2bvh_rot, normalisation_data=normalisation_data)
     save_bvh(target_motion.permute(0, 2, 1, 3).detach().cpu().numpy(), osp.join(args.out_path, 'target.bvh'))
 
     for i in loop:
@@ -76,10 +75,10 @@ def main(args_not_parsed):
     parser = OptimOptions()
     args = parser.parse_args(args_not_parsed)
 
-    g_ema, discriminator, motion_data, mean_latent, edge_rot_dict_general = load_all_form_checkpoint(args.ckpt, args, return_motion_data=True)
+    g_ema, discriminator, motion_data, mean_latent, motion_statics, normalisation_data, args = load_all_form_checkpoint(args.ckpt, args, return_motion_data=True)
 
     target_motion = motion_data[[args.target_idx]]
-    res = inverse_optim(args, g_ema, discriminator, args.device, mean_latent, target_motion, edge_rot_dict_general)
+    res = inverse_optim(args, g_ema, discriminator, args.device, mean_latent, target_motion, motion_statics, normalisation_data)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+# Pycharm files
+.idea/
+
+__pycache__
+
+# Mac files
+.DS_Store
