@@ -46,7 +46,7 @@ pip install clearml
 We provide a pretrained model for motion synthesis. 
 
 
-Download the [pretrained model](https://drive.google.com/file/d/1vGYam0B9LOb7IeWejgA-i2gtGY3loF4D/view?usp=share_link). 
+Download the [pretrained model](https://drive.google.com/file/d/1vGYam0B9LOb7IeWejgA-i2gtGY3loF4D/view?usp=sharing).
 <!-- Download the [pretrained model](https://drive.google.com/file/d/1Ezd6fW33B4GjmycKPVO-s0yIBfnqu9T5/view?usp=sharing).  -->
 
 Create a folder by the name `data` and place the downloaded model in it.
