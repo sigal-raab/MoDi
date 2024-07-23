@@ -123,7 +123,7 @@ Use `--target_idx` to chose the index of a motion to invert from `edge_rot_data.
 The encoder is able to invert motions into MoDi's latent space, enabling many applications. 
 
 ### Pretrained Encoder
-Download the [pretrained encoder](https://drive.google.com/file/d/1AoyS3DCuqPNhlQfo7LkANa1TVqCLSM03/view?usp=sharing).
+Download the [pretrained encoder](https://drive.google.com/file/d/1-NsJ7RPcPc_e-DqaOUKM0_-RSzPIeHr2/view?usp=sharing).
 
 
 ### Applications
