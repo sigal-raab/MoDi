@@ -221,11 +221,9 @@ def train_enc(args, loader, encoder, e_optim, d_optim, g_ema, device, motion_sta
                 for loss_name in loss_dict.keys():
                     logger.report_scalar("Losses", loss_name, iteration=i, value=loss_dict[loss_name])
 
-            if (i + 1) % args.report_every == 0:
-                motion_all = DynamicData(rec_img.permute(0, 2, 1, 3).detach().cpu().numpy(), motion_statics ,
-                                             use_velocity=args.use_velocity)
-                motion2bvh_rot(motion_all,
-                               osp.join(args.model_save_path, f"bvhs/{i + 1:05d}.bvh"))
+            if i == 0 or (i + 1) % args.report_every == 0:
+                motion_all = DynamicData(rec_img.detach().cpu(), motion_statics, use_velocity=args.use_velocity)
+                motion2bvh_rot(motion_all, osp.join(args.model_save_path, f"bvhs/{i + 1:05d}.bvh"))
             if i == 0 or (i+1) % args.report_every == 0:
                 torch.save(
                     {

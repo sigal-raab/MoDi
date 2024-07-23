@@ -144,7 +144,7 @@ def foot_info(motions_all: DynamicData):
 
 def motion2fig(motions_all: DynamicData, character_name: str,
                height=512, width=512, n_sampled_frames=5, entity='Edge'):
-    if all([joint in motion_all.motion_statics.names for joint in FIGURE_JOINTS]):
+    if not all([joint in motions_all.motion_statics.names for joint in FIGURE_JOINTS]):
         print(f'Visualisation figure generation is configured only for mixamo characters containing joint {FIGURE_JOINTS}')
         return None
     

@@ -128,7 +128,7 @@ def main(args_not_parsed):
 
     args.n_mlp = 8 # num linear layers in the generator's mapping network (z to W)
 
-    g_ema, discriminator, motion_data, mean_latent, motion_statics , normalisation_data, args = load_all_form_checkpoint(args.ckpt_existing, test_args, return_motion_data=True)
+    g_ema, discriminator, motion_data, mean_latent, motion_statics , normalisation_data, _ = load_all_form_checkpoint(args.ckpt_existing, test_args, return_motion_data=True)
     
     encoder = Discriminator(traits_class=traits_class, motion_statics =motion_statics ,
                             latent_dim=args.latent,
